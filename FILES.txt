@@ -11,11 +11,15 @@ Sources/Soundveil/App.swift
 Sources/Soundveil/Capture.swift
 Sources/Soundveil/Inference.swift
 Sources/Soundveil/Models.swift
+Sources/Soundveil/Updates.swift
+Sources/UpdateCore/Release.swift
 Sources/SmokeCheck/main.swift
 Tests/CaptionCoreTests/PipelineTests.swift
+Tests/UpdateCoreTests/ReleaseTests.swift
 VALIDATION.md
 scripts/build.sh
 scripts/package-dmg.sh
+scripts/release.sh
 scripts/test.sh
 FILES.txt
 dist/Soundveil.app/ (generated application bundle)

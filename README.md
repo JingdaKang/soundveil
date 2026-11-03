@@ -2,7 +2,7 @@
 
 *Give sound a written form.*
 
-A native SwiftUI macOS app for offline English captions of Chrome videos and live streams. MIT licensed, no account, subscriptions, paid APIs, translation, or microphone capture. Model downloads require internet; recognition does not. The Apple operating system and SDK remain proprietary prerequisites.
+A native SwiftUI macOS app for offline English captions of Chrome videos and live streams. MIT licensed, no account, subscriptions, paid APIs, translation, or microphone capture. Model downloads and the launch-time update check require internet; recognition does not. The Apple operating system and SDK remain proprietary prerequisites.
 
 ## Run the built app
 
@@ -65,6 +65,33 @@ requires a separate Developer ID signing and Apple notarization workflow;
 see [Apple's distribution guidance](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).
 The packaging script verifies the app signature and disk-image integrity, but does
 not perform notarization or upload a GitHub release.
+
+## Updates
+
+Soundveil does not install updates itself. At launch it asks the GitHub Releases API
+for this repository's latest published release; the request contains no captions,
+audio, or settings. If that release's tag is newer than the running version, the main
+window shows a banner whose **Download** button opens the disk image in your browser.
+Replace the app in Applications with the new one. **Soundveil → Check for Updates…**
+checks on demand and reports the result; **Check for Updates Automatically** turns the
+launch-time check off. Drafts and prereleases are never offered, and automatic-check
+failures are silent.
+
+Ad-hoc signatures change with every build, so macOS may ask for recording permission
+again after an update. Signed, in-place updates (for example with Sparkle) would
+require Developer ID signing and notarization.
+
+To publish a release, bump `CFBundleShortVersionString` in `Info.plist`, commit, and
+push, then run:
+
+```bash
+./scripts/release.sh
+```
+
+It refuses to run with uncommitted or unpushed changes, an existing tag, or a version
+older than the latest release. It builds and packages the DMG, then creates the
+`vX.Y.Z` GitHub release with the DMG and checksum attached. Pass `--skip-build` to
+package the app already in `dist/`. Requires the GitHub CLI (`gh`), signed in.
 
 ## Pipeline and concurrency
 
@@ -138,9 +165,13 @@ For manual acceptance, test permission denial/retry, Chrome and system capture, 
 - `Sources/Soundveil/Capture.swift`: ScreenCaptureKit, PCM extraction, resampling, discontinuity handling, audio level.
 - `Sources/Soundveil/Inference.swift`: model worker, backpressure, prompt context, caption delivery.
 - `Sources/Soundveil/Models.swift`: model choices, local storage and download progress/cancellation.
+- `Sources/Soundveil/Updates.swift`: GitHub latest-release request.
+- `Sources/UpdateCore/Release.swift`: release-tag version parsing, ordering, and response decoding.
 - `Sources/SmokeCheck/main.swift`: offline native inference smoke test.
 - `Tests/CaptionCoreTests/PipelineTests.swift`: pipeline unit tests.
+- `Tests/UpdateCoreTests/ReleaseTests.swift`: version and release-response unit tests.
 - `scripts/build.sh`, `scripts/test.sh`: reproducible build/package/sign and test commands.
+- `scripts/package-dmg.sh`, `scripts/release.sh`: disk-image packaging and GitHub release publishing.
 - `README.md`, `VALIDATION.md`, `LICENSE`, `.gitignore`: documentation, evidence, MIT license, generated-artifact exclusions.
 - `vendor/whisper.cpp/`: downloaded upstream source and its own license, excluded from Git.
 - `.build/`, `dist/`: generated build products; `dist/Soundveil.app` is the user-facing app.

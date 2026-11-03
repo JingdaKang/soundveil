@@ -1,5 +1,19 @@
 # Validation — 3 November 2026
 
+## Update check
+
+- Six new XCTest cases cover version parsing and numeric ordering, reading the DMG
+  asset from a GitHub response, falling back to the release page, ignoring drafts,
+  prereleases, and malformed tags, and offering only newer versions. All 15 cases passed.
+- Release build passed. In the app, **Check for Updates…** against the live GitHub API
+  (no releases published, HTTP 404) reported "Soundveil 0.1.0 is up to date".
+- A temporary build returning a fake 0.2.0 release showed the banner at launch; **Later**
+  hid it, the manual check showed the Download/Later alert, and with automatic checks
+  turned off no banner appeared at launch. The fake was removed before committing.
+- `release.sh` syntax and its usage and uncommitted-changes refusals were checked.
+  Publishing a release, the GitHub-generated notes, and **Download** opening a real
+  asset were not exercised; no release exists yet.
+
 ## DMG packaging checks
 
 - Packaged the existing release app as `Soundveil-0.1.0-arm64.dmg`.
