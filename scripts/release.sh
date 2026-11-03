@@ -15,7 +15,9 @@ NAME="Soundveil-$VERSION-arm64.dmg"
 [ -z "$(git status --porcelain)" ] || { echo "Commit or stash changes before releasing." >&2; exit 1; }
 git fetch -q origin
 [ "$(git rev-parse HEAD)" = "$(git rev-parse '@{u}')" ] || { echo "Push this branch first; the release must point at published source." >&2; exit 1; }
-! gh release view "$TAG" >/dev/null 2>&1 || { echo "Release $TAG exists. Bump CFBundleShortVersionString in Info.plist." >&2; exit 1; }
+# Releases bump the patch number only; minor and major bumps are deliberate edits.
+NEXT="${VERSION%.*}.$(( ${VERSION##*.} + 1 ))"
+! gh release view "$TAG" >/dev/null 2>&1 || { echo "Release $TAG exists. Set CFBundleShortVersionString in Info.plist to $NEXT." >&2; exit 1; }
 LATEST=$(gh release view --json tagName --jq .tagName 2>/dev/null || true)
 if [ -n "$LATEST" ] && [ "$(printf '%s\n%s\n' "${LATEST#v}" "$VERSION" | sort -V | tail -1)" != "$VERSION" ]; then
  echo "$VERSION is older than the latest release $LATEST; installed apps would never offer it." >&2; exit 1
