@@ -1,0 +1,20 @@
+.gitignore
+AGENTS.md
+Info.plist
+LICENSE
+Package.swift
+README.md
+Sources/CWhisperBridge/Bridge.c
+Sources/CWhisperBridge/include/Bridge.h
+Sources/CaptionCore/Pipeline.swift
+Sources/FreeCaptions/App.swift
+Sources/FreeCaptions/Capture.swift
+Sources/FreeCaptions/Inference.swift
+Sources/FreeCaptions/Models.swift
+Sources/SmokeCheck/main.swift
+Tests/CaptionCoreTests/PipelineTests.swift
+VALIDATION.md
+scripts/build.sh
+scripts/test.sh
+FILES.txt
+dist/FreeCaptions.app/ (generated application bundle)
