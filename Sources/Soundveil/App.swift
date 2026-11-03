@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import CaptionCore
+import UpdateCore
 
 @MainActor final class AppState: ObservableObject {
  @Published var model: Model = .turbo
@@ -16,12 +17,14 @@ import CaptionCore
  @Published var downloading = false
  @Published var progress: Double = 0
  @Published var installed = false
+ @Published var update: Release?
  private var capture: Capture?
  private var inference: Inference?
  private var download: ModelDownload?
  private var overlay: NSPanel?
  private var session = UUID()
  private var expire: Task<Void, Never>?
+ private var checked = false
  func refresh() { installed = model.exists }
  func downloadModel() {
   downloading = true; progress = 0; status = "Downloading \(model.rawValue)…"
@@ -82,6 +85,26 @@ import CaptionCore
   overlay?.orderFrontRegardless()
  }
  func hideOverlay() { overlay?.orderOut(nil) }
+ // Automatic checks run once per launch and stay silent on failure; manual checks always report.
+ func checkForUpdates(manual: Bool) async {
+  guard manual || !checked else { return }
+  checked = true
+  let alert = NSAlert()
+  do {
+   update = try await Updates.check()
+   guard manual else { return }
+   if let update {
+    alert.messageText = "Soundveil \(update.version) is available"
+    alert.informativeText = "You have \(Updates.current). Download the disk image, then replace Soundveil in Applications."
+    alert.addButton(withTitle: "Download"); alert.addButton(withTitle: "Later")
+    if alert.runModal() == .alertFirstButtonReturn { openUpdate() }
+   } else { alert.messageText = "Soundveil \(Updates.current) is up to date"; _ = alert.runModal() }
+  } catch {
+   guard manual else { return }
+   alert.messageText = "Couldn't check for updates"; alert.informativeText = error.localizedDescription; _ = alert.runModal()
+  }
+ }
+ func openUpdate() { if let update { NSWorkspace.shared.open(update.download ?? update.page) } }
  func export() {
   let panel = NSSavePanel(); panel.allowedContentTypes = [.plainText]; panel.nameFieldStringValue = "Captions.txt"
   if panel.runModal() == .OK, let url = panel.url {
@@ -101,12 +124,31 @@ struct CaptionOverlay: View {
    .help("Drag to move; resize from an edge. Hide using the main window.")
  }
 }
+struct UpdateBanner: View {
+ let update: Release
+ @ObservedObject var state: AppState
+ var body: some View {
+  HStack(spacing: 12) {
+   Image(systemName: "arrow.down.circle.fill").font(.title2).foregroundStyle(Color.accentColor)
+   VStack(alignment: .leading, spacing: 2) {
+    Text("Soundveil \(update.version) is available").font(.headline)
+    Text("You have \(Updates.current). Download the disk image, then replace Soundveil in Applications.").font(.caption).foregroundStyle(.secondary)
+   }
+   Spacer()
+   Button("Later") { state.update = nil }
+   Button("Download") { state.openUpdate() }.buttonStyle(.borderedProminent)
+  }.padding(12).background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+  .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.accentColor.opacity(0.25)))
+  .accessibilityElement(children: .contain).accessibilityLabel("Update available")
+ }
+}
 struct ContentView: View {
  @ObservedObject var state: AppState
  var body: some View {
   VStack(alignment: .leading, spacing: 16) {
    HStack { Text("Soundveil").font(.largeTitle.bold()); Spacer(); Text("ON DEVICE · ENGLISH").font(.caption).foregroundStyle(.secondary) }
    Text("Live captions for Chrome videos and streams. Audio stays on this Mac.").foregroundStyle(.secondary)
+   if let update = state.update { UpdateBanner(update: update, state: state) }
    Picker("Audio source", selection: $state.system) { Text("Chrome (all audible tabs)").tag(false); Text("System audio").tag(true) }.disabled(state.listening || state.busy)
    Picker("Recognition model", selection: $state.model) { ForEach(Model.allCases) { Text($0.title).tag($0) } }
     .disabled(state.listening || state.busy || state.downloading).onChange(of: state.model) { state.refresh() }
@@ -138,9 +180,17 @@ struct ContentView: View {
     }.onChange(of: state.history.count) { if let id = state.history.last?.id { proxy.scrollTo(id, anchor: .bottom) } }
    }
   }.padding(24).frame(minWidth: 650, minHeight: 620).onAppear { state.refresh() }
+  .animation(.default, value: state.update)
  }
 }
 @main struct SoundveilApp: App {
  @StateObject private var state = AppState()
- var body: some Scene { WindowGroup { ContentView(state: state) } }
+ @AppStorage("checkForUpdates") private var autoCheck = true
+ var body: some Scene {
+  WindowGroup { ContentView(state: state).task { if autoCheck { await state.checkForUpdates(manual: false) } } }
+   .commands { CommandGroup(after: .appInfo) {
+    Button("Check for Updates…") { Task { await state.checkForUpdates(manual: true) } }
+    Toggle("Check for Updates Automatically", isOn: $autoCheck)
+   }}
+ }
 }
