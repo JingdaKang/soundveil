@@ -11,8 +11,12 @@
   hid it, the manual check showed the Download/Later alert, and with automatic checks
   turned off no banner appeared at launch. The fake was removed before committing.
 - `release.sh` syntax and its usage and uncommitted-changes refusals were checked.
-  Publishing a release, the GitHub-generated notes, and **Download** opening a real
-  asset were not exercised; no release exists yet.
+- Published `v0.1.0` with `release.sh`. The latest-release API returned it with the
+  DMG and checksum assets, the downloaded DMG matched the published SHA-256, and the
+  tag points at the release commit. The app's decoder, run against that live
+  response, read version 0.1.0 and chose the DMG over the checksum file.
+- Not tested: an installed app offering a real newer release, **Download** opening the
+  asset in a browser, and Gatekeeper's handling of the downloaded DMG.
 
 ## DMG packaging checks
 
