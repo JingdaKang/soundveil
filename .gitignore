@@ -1,0 +1,7 @@
+.build/
+dist/
+vendor/
+*.bin
+*.mlmodelc/
+.DS_Store
+docs/*.log
