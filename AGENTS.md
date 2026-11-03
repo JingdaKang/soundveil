@@ -22,6 +22,8 @@ After relocation, regenerate `.build/` and `vendor/whisper.cpp/build/`; their ca
 contain absolute paths.
 Releases are published with `./scripts/release.sh`; the app's update check compares
 release tags (`vX.Y.Z`) with `CFBundleShortVersionString`, so bump it before releasing.
+Bump the last number only (0.1.0 → 0.1.1 → 0.1.2). Do not raise the minor or major
+number, and never move to 1.0.0, unless the owner asks for it.
 
 Keep capture, inference, and UI work on their existing queues/actor. Preserve the
 bounded inference queue and document that replacing pending work loses coverage.

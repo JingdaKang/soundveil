@@ -81,8 +81,9 @@ Ad-hoc signatures change with every build, so macOS may ask for recording permis
 again after an update. Signed, in-place updates (for example with Sparkle) would
 require Developer ID signing and notarization.
 
-To publish a release, bump `CFBundleShortVersionString` in `Info.plist`, commit, and
-push, then run:
+To publish a release, bump the last number of `CFBundleShortVersionString` in
+`Info.plist` (0.1.0 → 0.1.1; minor and major bumps are deliberate decisions), commit,
+and push, then run:
 
 ```bash
 ./scripts/release.sh
