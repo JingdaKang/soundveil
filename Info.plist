@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>FreeCaptions</string>
+<key>CFBundleDisplayName</key><string>FreeCaptions</string>
+<key>CFBundleIdentifier</key><string>org.freecaptions.mac</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>CFBundleExecutable</key><string>FreeCaptions</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>LSMinimumSystemVersion</key><string>14.0</string>
+<key>NSHighResolutionCapable</key><true/>
+<key>NSScreenCaptureUsageDescription</key><string>Capture Chrome or system audio locally to display English captions. No video is saved and no microphone is used.</string>
+</dict></plist>
