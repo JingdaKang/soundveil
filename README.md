@@ -1,19 +1,21 @@
-# FreeCaptions
+# Soundveil
+
+*Give sound a written form.*
 
 A native SwiftUI macOS app for offline English captions of Chrome videos and live streams. MIT licensed, no account, subscriptions, paid APIs, translation, or microphone capture. Model downloads require internet; recognition does not. The Apple operating system and SDK remain proprietary prerequisites.
 
 ## Run the built app
 
-Open `dist/FreeCaptions.app` in Finder. This locally built app is ad-hoc signed, not notarized. Keep it in a stable location so recording permissions remain associated with it.
+Open `dist/Soundveil.app` in Finder. This locally built app is ad-hoc signed, not notarized. Keep it in a stable location so recording permissions remain associated with it.
 
 1. Open Chrome and play a video. Mute other audible Chrome tabs.
 2. Choose **Large v3 Turbo**, then **Download model (free)**. It needs about 1.6 GB of disk space; **Large v3** needs about 3.1 GB. Downloads stream to disk, support cancellation, and install only after completion and a GGML header check. Files are not cryptographically verified by this MVP.
 3. Select **Chrome (all audible tabs)** and **Start captions**.
-4. Accept macOS's native recording-permission prompt. Depending on macOS, the setting is named **Screen Recording** or **Screen & System Audio Recording** under **System Settings → Privacy & Security**. Enable FreeCaptions and relaunch if requested. The app uses ScreenCaptureKit's native authorization flow; it cannot grant itself access.
+4. Accept macOS's native recording-permission prompt. Depending on macOS, the setting is named **Screen Recording** or **Screen & System Audio Recording** under **System Settings → Privacy & Security**. Enable Soundveil and relaunch if requested. The app uses ScreenCaptureKit's native authorization flow; it cannot grant itself access.
 5. Drag the caption panel to your preferred position. Resize at its edges, adjust caption size in the main window, or hide/show it. It floats above ordinary windows and requests full-screen/Spaces participation; exclusive full-screen applications may behave differently.
 6. Stop before changing source, model, or quiet-speech threshold. Stop discards unfinished audio and waits for any current inference call to finish before unloading the model.
 
-The level indicator shows captured audio. If it stays empty, check Chrome playback, permissions, or try **System audio**. System mode includes other applications' sounds, excluding FreeCaptions itself. No BlackHole/loopback driver is required. ScreenCaptureKit needs a display-based filter even for audio capture; the app subscribes only to audio and never saves screen images.
+The level indicator shows captured audio. If it stays empty, check Chrome playback, permissions, or try **System audio**. System mode includes other applications' sounds, excluding Soundveil itself. No BlackHole/loopback driver is required. ScreenCaptureKit needs a display-based filter even for audio capture; the app subscribes only to audio and never saves screen images.
 
 Models are stored at:
 
@@ -22,6 +24,10 @@ Models are stored at:
   ggml-large-v3-turbo.bin
   ggml-large-v3.bin
 ```
+
+The original `FreeCaptions` storage directory is retained for compatibility with existing downloads.
+Soundveil has a new app identity; macOS may request recording permission again even
+if you previously granted it to FreeCaptions.
 
 Use **Open model folder** to install compatible GGML files manually or remove them to reclaim space. Model files are ignored by Git. Existing files are checked by whisper.cpp when loaded. History is kept in memory (latest 2,000 segments), reset on Start, and saved only when you choose **Export**. Quit discards it.
 
@@ -35,7 +41,7 @@ brew install cmake
 # From this project's directory:
 ./scripts/build.sh
 ./scripts/test.sh
-open dist/FreeCaptions.app
+open dist/Soundveil.app
 ```
 
 `build.sh` fetches whisper.cpp v1.8.7 and verifies commit `48f628a84833905ee4a0658ee6d4a5c915ce1997`. It builds static ARM64 libraries with Metal, embedded Metal shaders, and Accelerate, then builds and signs the app. Subsequent builds reuse the local checkout. No inference server or process-per-chunk is used. For editing, open `Package.swift` in Xcode after the dependency build; use the script-built app bundle for permission/playback testing. The package uses Swift 5.10 language mode, tested with Swift 6.0.3.
@@ -108,16 +114,16 @@ For manual acceptance, test permission denial/retry, Chrome and system capture, 
 - `Info.plist`: app identity, deployment target, recording usage description.
 - `Sources/CaptionCore/Pipeline.swift`: chunking/VAD, timestamped captions, deduplication, bounded queue.
 - `Sources/CWhisperBridge/include/Bridge.h`, `Sources/CWhisperBridge/Bridge.c`: narrow native inference API.
-- `Sources/FreeCaptions/App.swift`: SwiftUI controls, session lifecycle, overlay, history/export.
-- `Sources/FreeCaptions/Capture.swift`: ScreenCaptureKit, PCM extraction, resampling, discontinuity handling, audio level.
-- `Sources/FreeCaptions/Inference.swift`: model worker, backpressure, prompt context, caption delivery.
-- `Sources/FreeCaptions/Models.swift`: model choices, local storage and download progress/cancellation.
+- `Sources/Soundveil/App.swift`: SwiftUI controls, session lifecycle, overlay, history/export.
+- `Sources/Soundveil/Capture.swift`: ScreenCaptureKit, PCM extraction, resampling, discontinuity handling, audio level.
+- `Sources/Soundveil/Inference.swift`: model worker, backpressure, prompt context, caption delivery.
+- `Sources/Soundveil/Models.swift`: model choices, local storage and download progress/cancellation.
 - `Sources/SmokeCheck/main.swift`: offline native inference smoke test.
 - `Tests/CaptionCoreTests/PipelineTests.swift`: pipeline unit tests.
 - `scripts/build.sh`, `scripts/test.sh`: reproducible build/package/sign and test commands.
 - `README.md`, `VALIDATION.md`, `LICENSE`, `.gitignore`: documentation, evidence, MIT license, generated-artifact exclusions.
 - `vendor/whisper.cpp/`: downloaded upstream source and its own license, excluded from Git.
-- `.build/`, `dist/`: generated build products; `dist/FreeCaptions.app` is the user-facing app.
+- `.build/`, `dist/`: generated build products; `dist/Soundveil.app` is the user-facing app.
 
 ## References and licenses
 

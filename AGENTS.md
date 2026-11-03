@@ -1,11 +1,11 @@
-# FreeCaptions
+# Soundveil
 
 This project is a single native macOS application. Keep its Swift package and app
 source together here; do not modify neighboring projects.
 
 ## Components
 
-- `Sources/FreeCaptions`: SwiftUI/AppKit UI, capture, inference coordination, models.
+- `Sources/Soundveil`: SwiftUI/AppKit UI, capture, inference coordination, models.
 - `Sources/CaptionCore`: pure audio windowing, deduplication, bounded queue logic.
 - `Sources/CWhisperBridge`: C interface to the pinned whisper.cpp dependency.
 - `Sources/SmokeCheck`: offline native transcription check.
@@ -14,7 +14,7 @@ source together here; do not modify neighboring projects.
 ## Build and validation
 
 Run `./scripts/build.sh` before `./scripts/test.sh`. The app is generated at
-`dist/FreeCaptions.app`. Read README.md and VALIDATION.md for operating constraints
+`dist/Soundveil.app`. Read README.md and VALIDATION.md for operating constraints
 and evidence. Keep model weights, vendor dependencies, and build products out of Git.
 After relocation, regenerate `.build/` and `vendor/whisper.cpp/build/`; their caches
 contain absolute paths.

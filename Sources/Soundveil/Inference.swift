@@ -3,7 +3,7 @@ import CaptionCore
 import CWhisperBridge
 
 final class Inference: @unchecked Sendable {
- private let queue = DispatchQueue(label: "FreeCaptions.inference", qos: .userInitiated)
+ private let queue = DispatchQueue(label: "Soundveil.inference", qos: .userInitiated)
  private let lock = NSLock()
  private var pending = LatestQueue<AudioChunk>()
  private var running = false

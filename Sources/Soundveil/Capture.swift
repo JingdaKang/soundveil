@@ -3,7 +3,7 @@ import AVFoundation
 import CaptionCore
 
 final class Capture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
- private let queue = DispatchQueue(label: "FreeCaptions.capture", qos: .userInitiated)
+ private let queue = DispatchQueue(label: "Soundveil.capture", qos: .userInitiated)
  private var stream: SCStream?
  private var chunker = Chunker()
  private var converter: AVAudioConverter?

@@ -1,5 +1,16 @@
 # Validation — 3 November 2026
 
+## Soundveil rename checks
+
+- Rebuilt the default Metal release app from fresh Swift and CMake caches after
+  renaming the source module, executable, app bundle, and bundle identifier.
+- All nine pipeline XCTest cases passed with zero failures.
+- Strict signature verification and Info.plist validation passed for
+  `dist/Soundveil.app`.
+- Existing model storage remains at `~/Library/Application Support/FreeCaptions/Models`.
+- Live capture and native inference were not rerun for the rename; previous
+  acceptance limitations still apply.
+
 ## Relocation checks
 
 Rebuilt from a fresh project location on 3 November 2026.

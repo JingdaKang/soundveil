@@ -6,6 +6,7 @@ enum Model: String, CaseIterable, Identifiable {
  var title: String { self == .turbo ? "Large v3 Turbo · speed · 1.6 GB" : "Large v3 · quality · 3.1 GB" }
  var file: URL { Self.directory.appendingPathComponent("ggml-\(rawValue).bin") }
  var exists: Bool { FileManager.default.fileExists(atPath: file.path) }
+ // Preserve the original storage path so existing multi-GB downloads remain usable.
  static var directory: URL {
   FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("FreeCaptions/Models", isDirectory: true)
  }

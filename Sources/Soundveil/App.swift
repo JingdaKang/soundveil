@@ -57,7 +57,7 @@ import CaptionCore
    listening = true; busy = false; status = "Listening · play a video in Chrome"; showOverlay()
   } catch {
    await capture?.stop(); capture = nil; await engine.stop(); inference = nil
-   status = "\(error.localizedDescription) If access was denied, enable FreeCaptions in System Settings → Privacy & Security → Screen & System Audio Recording, then relaunch."
+   status = "\(error.localizedDescription) If access was denied, enable Soundveil in System Settings → Privacy & Security → Screen & System Audio Recording, then relaunch."
    busy = false
   }
  }
@@ -105,7 +105,7 @@ struct ContentView: View {
  @ObservedObject var state: AppState
  var body: some View {
   VStack(alignment: .leading, spacing: 16) {
-   HStack { Text("FreeCaptions").font(.largeTitle.bold()); Spacer(); Text("ON DEVICE · ENGLISH").font(.caption).foregroundStyle(.secondary) }
+   HStack { Text("Soundveil").font(.largeTitle.bold()); Spacer(); Text("ON DEVICE · ENGLISH").font(.caption).foregroundStyle(.secondary) }
    Text("Live captions for Chrome videos and streams. Audio stays on this Mac.").foregroundStyle(.secondary)
    Picker("Audio source", selection: $state.system) { Text("Chrome (all audible tabs)").tag(false); Text("System audio").tag(true) }.disabled(state.listening || state.busy)
    Picker("Recognition model", selection: $state.model) { ForEach(Model.allCases) { Text($0.title).tag($0) } }
@@ -140,7 +140,7 @@ struct ContentView: View {
   }.padding(24).frame(minWidth: 650, minHeight: 620).onAppear { state.refresh() }
  }
 }
-@main struct FreeCaptionsApp: App {
+@main struct SoundveilApp: App {
  @StateObject private var state = AppState()
  var body: some Scene { WindowGroup { ContentView(state: state) } }
 }
