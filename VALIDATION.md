@@ -1,5 +1,14 @@
 # Validation — 3 November 2026
 
+## DMG packaging checks
+
+- Packaged the existing release app as `Soundveil-0.1.0-arm64.dmg`.
+- Disk-image integrity verification and SHA-256 checksum verification passed.
+- Mounted the DMG read-only and verified the bundled app's strict code signature
+  and the `Applications` symlink target, then ejected the verification mount.
+- The package is ad-hoc signed, not notarized; downloaded-file Gatekeeper behavior
+  and installation on a separate Mac were not tested.
+
 ## Soundveil rename checks
 
 - Rebuilt the default Metal release app from fresh Swift and CMake caches after

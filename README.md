@@ -46,6 +46,26 @@ open dist/Soundveil.app
 
 `build.sh` fetches whisper.cpp v1.8.7 and verifies commit `48f628a84833905ee4a0658ee6d4a5c915ce1997`. It builds static ARM64 libraries with Metal, embedded Metal shaders, and Accelerate, then builds and signs the app. Subsequent builds reuse the local checkout. No inference server or process-per-chunk is used. For editing, open `Package.swift` in Xcode after the dependency build; use the script-built app bundle for permission/playback testing. The package uses Swift 5.10 language mode, tested with Swift 6.0.3.
 
+## Build a drag-and-drop DMG
+
+```bash
+./scripts/package-dmg.sh
+# Or package the app you already built:
+./scripts/package-dmg.sh --skip-build
+```
+
+The script creates `dist/Soundveil-0.1.0-arm64.dmg` (version read from the app),
+plus a `.sha256` checksum. It contains `Soundveil.app`, an `Applications` shortcut,
+and installation instructions. Open the DMG, drag the app onto Applications,
+eject the image, and launch the installed app. Models download separately.
+
+This is an ad-hoc-signed development build, not a notarized public release.
+Creating a DMG does not change macOS Gatekeeper trust. A normal public release
+requires a separate Developer ID signing and Apple notarization workflow;
+see [Apple's distribution guidance](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).
+The packaging script verifies the app signature and disk-image integrity, but does
+not perform notarization or upload a GitHub release.
+
 ## Pipeline and concurrency
 
 ```mermaid

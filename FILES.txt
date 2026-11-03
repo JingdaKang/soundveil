@@ -15,6 +15,7 @@ Sources/SmokeCheck/main.swift
 Tests/CaptionCoreTests/PipelineTests.swift
 VALIDATION.md
 scripts/build.sh
+scripts/package-dmg.sh
 scripts/test.sh
 FILES.txt
 dist/Soundveil.app/ (generated application bundle)
