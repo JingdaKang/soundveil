@@ -34,6 +34,10 @@ bounded audio buffer and document that dropping audio loses coverage.
 Do not describe offline smoke tests or StreamCheck as verification of live capture,
 permissions, overlay behavior, or large-model performance.
 
+Large v3 Turbo stays the default until another model is measured with StreamCheck. Do not
+publish figures for a model that has not been measured. `Model` raw values name the files
+on disk and upstream, so renaming one orphans existing downloads.
+
 The rolling pipeline's settings came from measurement, and README.md explains why.
 Check any change to them with StreamCheck against a reference transcript. In particular:
 keep the audio context the same for every pass, do not pass a prompt to Whisper, and do
