@@ -70,7 +70,7 @@ import ShortcutCore
   if !listening, !busy, !downloading { status = installed ? "Ready. Play a video in Chrome, then start captions." : "Download a model to get started." }
  }
  func downloadModel() {
-  downloading = true; progress = 0; status = "Downloading \(model.rawValue)…"
+  downloading = true; progress = 0; status = "Downloading \(model.name)…"
   download = ModelDownload(model: model, progress: { value in Task { @MainActor in self.progress = value } }, completion: { error in
    Task { @MainActor in self.downloading = false; self.refresh(); if let error { self.status = error }; self.download = nil }
   }); download?.start()
@@ -236,6 +236,7 @@ struct ContentView: View {
    Picker("Audio source", selection: $state.system) { Text("Chrome (all audible tabs)").tag(false); Text("System audio").tag(true) }.disabled(state.listening || state.busy)
    Picker("Recognition model", selection: $state.model) { ForEach(Model.allCases) { Text($0.title).tag($0) } }
     .disabled(state.listening || state.busy || state.downloading).onChange(of: state.model) { state.refresh() }
+   Text(state.model.detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
    HStack {
     if state.downloading { ProgressView(value: state.progress); Button("Cancel download") { state.cancelDownload() } }
     else { Button(state.installed ? "Model installed" : "Download model (free)") { state.downloadModel() }.disabled(state.installed || state.busy) }

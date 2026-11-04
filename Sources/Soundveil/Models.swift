@@ -1,10 +1,8 @@
 import Foundation
+import CaptionCore
 
-enum Model: String, CaseIterable, Identifiable {
- case turbo = "large-v3-turbo", quality = "large-v3"
- var id: String { rawValue }
- var title: String { self == .turbo ? "Large v3 Turbo · speed · 1.6 GB" : "Large v3 · quality · 3.1 GB" }
- var file: URL { Self.directory.appendingPathComponent("ggml-\(rawValue).bin") }
+extension Model {
+ var file: URL { Self.directory.appendingPathComponent(fileName) }
  var exists: Bool { FileManager.default.fileExists(atPath: file.path) }
  // Preserve the original storage path so existing multi-GB downloads remain usable.
  static var directory: URL {
@@ -25,7 +23,7 @@ final class ModelDownload: NSObject, URLSessionDownloadDelegate, @unchecked Send
   let config = URLSessionConfiguration.default
   config.timeoutIntervalForResource = 86400
   session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
-  task = session!.downloadTask(with: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-\(model.rawValue).bin")!)
+  task = session!.downloadTask(with: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/\(model.fileName)")!)
   task!.resume()
  }
  func cancel() { task?.cancel() }
