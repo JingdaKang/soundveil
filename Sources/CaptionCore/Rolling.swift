@@ -38,6 +38,47 @@ func quietestPoint(in samples: [Float]) -> Int {
  }
  return best + 800
 }
+// Each pass keeps the GPU busy, so this trades delay against power. Measured on an M4 Pro,
+// updating every 0.4 s rather than 0.2 s took the GPU from 77% to 46% busy during speech and
+// cut on-screen corrections sixfold, for 0.17 s more delay.
+public enum UpdateSpeed: String, CaseIterable, Identifiable, Sendable {
+ case auto, fastest, balanced, efficient, saver
+ public var id: String { rawValue }
+ public var title: String {
+  switch self {
+  case .auto: return "Automatic"
+  case .fastest: return "Fastest · every 0.2 s"
+  case .balanced: return "Balanced · every 0.4 s"
+  case .efficient: return "Efficient · every 0.75 s"
+  case .saver: return "Battery saver · every 1.5 s"
+  }
+ }
+ public var detail: String {
+  switch self {
+  case .auto: return "Keeps the GPU under about half load on this Mac, and slows down in Low Power Mode or when it's hot."
+  case .fastest: return "Lowest delay. Uses the most GPU and battery, and text changes more as it settles."
+  case .balanced: return "A good default on most Macs."
+  case .efficient: return "Much less GPU use, with words arriving a little later."
+  case .saver: return "Lowest GPU use. Words arrive in small groups."
+  }
+ }
+ var seconds: Double? {
+  switch self {
+  case .auto: return nil
+  case .fastest: return 0.2
+  case .balanced: return 0.4
+  case .efficient: return 0.75
+  case .saver: return 1.5
+  }
+ }
+}
+// A fixed choice is always honored. Automatic rests as long as each pass took, so the GPU is
+// busy about half the time at most, and doubles that under Low Power Mode or thermal pressure.
+public func updateInterval(_ speed: UpdateSpeed, passTime: Double, constrained: Bool) -> Double {
+ if let seconds = speed.seconds { return seconds }
+ let paced = max(0.4, passTime * 2)
+ return min(3, constrained ? paced * 2 : paced)
+}
 // Whisper has no native streaming, and its word timestamps are too unreliable to cut audio
 // on. So partial passes over the current phrase are for display only, and the transcript comes
 // from one final pass over each phrase, cut at a pause. This is a pure state machine, so the
@@ -45,7 +86,7 @@ func quietestPoint(in samples: [Float]) -> Int {
 // inference queue pulls one job at a time, under Inference's lock.
 public struct RollingTranscriber {
  public var firstDecode = 0.8    // Seconds of speech before the first pass.
- public var step = 0.2           // New audio required between passes.
+ public var step = 0.4           // New audio required between passes. See UpdateSpeed.
  public var minPhrase = 2.5      // Shorter phrases carry on through a pause.
  public var maxPhrase = 9.0      // Longer phrases are cut at their quietest point.
  public var capacity = 24.0      // Seconds kept. Past this, inference has stalled and audio is dropped.
@@ -66,6 +107,7 @@ public struct RollingTranscriber {
  private var previous: [Word] = []
  private var shown: [Word] = []
  private var voiced = 0.0
+ private var emptyPasses = 0
  private var assembler = SentenceAssembler()
  public init() {}
  public var audioEnd: Double { bufferStart + Double(buffer.count)/16000 }
@@ -109,7 +151,9 @@ public struct RollingTranscriber {
    let seconds = Double(phrase.samples.count)/16000
    return DecodeJob(samples: phrase.samples, start: phrase.start, audioContext: audioContext, maxTokens: tokenLimit(forSeconds: seconds), beam: finalBeam, isFinal: true)
   }
-  guard length >= firstDecode, audioEnd - decodedEnd >= step else { return nil }
+  // Music or noise passes the gate but gives no words, so each empty pass waits longer.
+  let wait = min(max(2, step), step * pow(2, Double(min(emptyPasses, 4))))
+  guard length >= firstDecode, audioEnd - decodedEnd >= wait else { return nil }
   busy = true; decodedEnd = audioEnd
   return DecodeJob(samples: buffer, start: bufferStart, audioContext: audioContext, maxTokens: tokenLimit(forSeconds: length), beam: partialBeam, isFinal: false)
  }
@@ -118,13 +162,14 @@ public struct RollingTranscriber {
   var update = CaptionUpdate()
   let pass = removingLoops(words)
   if job.isFinal {
-   closing.removeFirst(); previous = []; shown = []
+   closing.removeFirst(); previous = []; shown = []; emptyPasses = 0
    update.committed = pass; update.tentative = []
    update.sentences = assembler.add(pass)
   } else if closing.isEmpty, !buffer.isEmpty {
    // Whisper's guess at a cut-off phrase can swing wildly from one pass to the next, so what
    // is on screen only changes when two passes in a row agree. A lone outlier is ignored.
    // New words at the end are the exception: one is shown ahead of agreement, to keep up.
+   emptyPasses = pass.isEmpty ? emptyPasses + 1 : 0
    let agreed = commonPrefix(previous, pass), kept = commonPrefix(shown, pass)
    if kept == shown.count { shown = Array(pass.prefix(max(kept, agreed + tailWords))) }
    else if agreed > kept { shown = Array(pass.prefix(agreed + tailWords)) }

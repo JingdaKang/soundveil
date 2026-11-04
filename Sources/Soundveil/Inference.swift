@@ -13,6 +13,7 @@ final class Inference: @unchecked Sendable {
  private var enabled = true
  private var recognizer: Recognizer?
  private var lastStatus = Date.distantPast
+ private var speed = UpdateSpeed.auto
  var onUpdate: (@Sendable (CaptionUpdate) -> Void)?
  var onStatus: (@Sendable (String) -> Void)?
  func load(path: String) async throws {
@@ -23,6 +24,9 @@ final class Inference: @unchecked Sendable {
     else { continuation.resume() }
    }
   }
+ }
+ func setSpeed(_ speed: UpdateSpeed) {
+  lock.withLock { self.speed = speed; transcriber.step = updateInterval(speed, passTime: 0, constrained: false) }
  }
  func submit(_ events: [SpeechEvent]) {
   lock.lock()
@@ -42,10 +46,15 @@ final class Inference: @unchecked Sendable {
    guard let recognizer else { continue }
    let began = Date()
    let words = recognizer.decode(job)
+   let took = Date().timeIntervalSince(began)
+   let info = ProcessInfo.processInfo
+   let constrained = info.isLowPowerModeEnabled || info.thermalState == .serious || info.thermalState == .critical
    lock.lock()
    let publish = enabled
    let update = transcriber.complete(job, words: words ?? [])
    let skipped = transcriber.skipped
+   if !job.isFinal { transcriber.step = updateInterval(speed, passTime: took, constrained: constrained) }
+   let interval = transcriber.step
    lock.unlock()
    guard publish else { continue }
    if words == nil { onStatus?("Recognition failed. Stop and start again, or choose another model."); continue }
@@ -54,7 +63,7 @@ final class Inference: @unchecked Sendable {
    if now.timeIntervalSince(lastStatus) >= 1 {
     lastStatus = now
     let coverage = skipped >= 1 ? String(format: " · %.0f s skipped", skipped) : ""
-    onStatus?(String(format: "Listening · about %.1f s behind", now.timeIntervalSince(began)) + coverage)
+    onStatus?(String(format: "Listening · about %.1f s behind", took + interval / 2) + coverage)
    }
   }
  }
