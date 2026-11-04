@@ -34,5 +34,7 @@ Requires Apple Silicon and macOS 14 or later. Downloaded models are kept.
 
 This build is ad-hoc signed and not notarized. If macOS says it can't verify
 Soundveil, open System Settings → Privacy & Security and choose Open Anyway.
-macOS may ask for Screen & System Audio Recording permission again after updating.
+If captions are refused after updating while Soundveil is switched on under Screen &
+System Audio Recording, run `tccutil reset ScreenCapture org.soundveil.mac`, click
+Start captions, turn Soundveil on again, and reopen it.
 NOTES
