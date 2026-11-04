@@ -22,8 +22,7 @@ Word error stayed at 0.7% and nothing was skipped at any speed. Words first appe
 1.75 s at 3× and 2.89 s at 5× under Automatic. CPU-only decoding was run for real on the M4
 Pro: 894 ms per pass, about 4.7× slower than the GPU. Peak memory was about 1.9 GB.
 
-66 unit tests pass in the caption and shortcut logic plus 6 for updates. The Settings
-window was seen in the running app.
+All 66 unit tests pass, and the Settings window was seen in the running app.
 
 **Not verified:** global shortcuts firing, recording a new shortcut, and click-through
 have not been exercised, because they need real keys and pointer. Update speed has not been
