@@ -25,11 +25,33 @@ What the measurements changed, with results in README.md: prompts removed, audio
 pauses instead of on Whisper's word timestamps, one fixed audio context, and two passes
 required to change the screen.
 
-**Not verified:** this pipeline has not run on live Chrome audio. The overlay's animation
-and smoothness have not been seen in a real window, because the screen was locked during
-the work. These delay figures are offline and exclude capture delay. Real speech beyond
-`jfk.wav`, music, long runs, thermal behavior, and Large v3 were not tested. The
-`setup-signing.sh` script has not been run, so permission surviving a rebuild is unproven.
+### Live test
+
+Run on a recorded talk in the owner's own Chrome tab, with Chrome on a different desktop
+from Soundveil, for about five minutes.
+
+- Captions appeared in the overlay and history, and the status line read about 0.2 s
+  behind. That figure is pass time, not a measured end-to-end delay.
+- CPU averaged 19% (peak 33%), memory was about 2.05 GB, and nothing was reported skipped.
+- About 150 words were compared by eye with the official transcript. About 6 were wrong,
+  mostly in the first sentence over applause ("I'm a Honoured" for "I am honored"). This
+  is a spot check, not a score, because no export was made.
+- Rebuilding kept recording permission with no reset: the binary hash changed and the
+  stored permission, which names the signing certificate, still applied.
+- Probing each capture filter on real Chrome audio with Chrome on another desktop:
+  including Chrome and excluding other apps both heard it, and listing on-screen apps only
+  found no Chrome at all. Inclusion stays, because exclusion also let through sound from an
+  app with no windows.
+- That run used a build with the exclusion filter. Chrome-only inclusion has been probed
+  on real audio but not yet run through the full pipeline.
+
+A Chrome tab driven by browser automation gave silence to every capture setup, even a
+whole-system one, although it reported playing and unmuted. The cause was not established.
+Live tests need a tab the owner started.
+
+**Not verified:** smoothness is pending the owner's judgment. Overlay behavior over
+full-screen video, a ten-minute run, a formal accuracy score on real speech, music, and
+Large v3 were not tested.
 
 ## Live caption test — 4 November 2026
 
