@@ -13,7 +13,10 @@ Sources/Soundveil/App.swift
 Sources/Soundveil/Capture.swift
 Sources/Soundveil/Inference.swift
 Sources/Soundveil/Models.swift
+Sources/ShortcutCore/Shortcuts.swift
+Sources/Soundveil/Hotkeys.swift
 Sources/Soundveil/Overlay.swift
+Sources/Soundveil/Settings.swift
 Sources/Soundveil/Updates.swift
 Sources/UpdateCore/Release.swift
 Sources/SmokeCheck/main.swift
@@ -22,6 +25,7 @@ Sources/WhisperEngine/Recognizer.swift
 Tests/CaptionCoreTests/ExpressiveTests.swift
 Tests/CaptionCoreTests/PipelineTests.swift
 Tests/CaptionCoreTests/RollingTests.swift
+Tests/ShortcutCoreTests/ShortcutTests.swift
 Tests/UpdateCoreTests/ReleaseTests.swift
 VALIDATION.md
 scripts/build.sh

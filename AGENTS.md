@@ -8,12 +8,14 @@ source together here; do not modify neighboring projects.
 - `Sources/Soundveil`: SwiftUI/AppKit UI, capture, inference coordination, models.
 - `Sources/CaptionCore`: pure speech gate, rolling transcriber, word layout, and expressive word logic.
 - `Sources/WhisperEngine`: Swift wrapper over the bridge for rolling decode jobs.
+- `Sources/ShortcutCore`: pure shortcut actions, validation, and storage.
 - `Sources/UpdateCore`: pure release-version parsing and GitHub release decoding.
 - `Sources/CWhisperBridge`: C interface to the pinned whisper.cpp dependency.
 - `Sources/SmokeCheck`: offline native transcription check.
 - `Sources/StreamCheck`: offline latency and accuracy replay of the rolling pipeline.
 - `Tests/CaptionCoreTests`: pipeline unit tests.
 - `Tests/UpdateCoreTests`: update-check unit tests.
+- `Tests/ShortcutCoreTests`: shortcut unit tests.
 
 ## Build and validation
 
