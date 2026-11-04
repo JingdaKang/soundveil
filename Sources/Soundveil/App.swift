@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import CaptionCore
 import UpdateCore
+import ShortcutCore
 
 @MainActor final class AppState: ObservableObject {
  @Published var model: Model = .turbo
@@ -11,6 +12,10 @@ import UpdateCore
  @Published var fontSize: Double { didSet { UserDefaults.standard.set(fontSize, forKey: "captionSize"); feed.fontSize = fontSize } }
  @Published var status = "Download a model to get started."
  @Published var highlightWords: Bool { didSet { UserDefaults.standard.set(highlightWords, forKey: "highlightWords"); feed.highlight = highlightWords } }
+ @Published var updateSpeed: UpdateSpeed { didSet { UserDefaults.standard.set(updateSpeed.rawValue, forKey: "updateSpeed"); inference?.setSpeed(updateSpeed) } }
+ @Published var clickThrough: Bool { didSet { UserDefaults.standard.set(clickThrough, forKey: "clickThrough"); overlay?.ignoresMouseEvents = clickThrough; if clickThrough { feed.hovering = false } } }
+ @Published private(set) var shortcuts: ShortcutMap
+ @Published private(set) var refusedShortcuts: [ShortcutAction] = []
  @Published var needsPermission = false
  @Published var history: [Caption] = []
  @Published var busy = false
@@ -28,11 +33,37 @@ import UpdateCore
  private var observers: [NSObjectProtocol] = []
  private var compactHeight = 156.0
  let feed = CaptionFeed()
+ let hotkeys = Hotkeys()
  init() {
   let saved = UserDefaults.standard.double(forKey: "captionSize")
   fontSize = saved > 0 ? saved : 28
   highlightWords = UserDefaults.standard.object(forKey: "highlightWords") as? Bool ?? true
+  updateSpeed = UpdateSpeed(rawValue: UserDefaults.standard.string(forKey: "updateSpeed") ?? "") ?? .auto
+  clickThrough = UserDefaults.standard.bool(forKey: "clickThrough")
+  shortcuts = UserDefaults.standard.data(forKey: "shortcuts").flatMap { ShortcutMap(data: $0) } ?? .defaults
   feed.fontSize = fontSize; feed.highlight = highlightWords
+  hotkeys.onAction = { [weak self] in self?.perform($0) }
+  applyShortcuts()
+ }
+ func applyShortcuts() { refusedShortcuts = hotkeys.install(shortcuts) }
+ func setShortcut(_ shortcut: Shortcut?, for action: ShortcutAction) {
+  shortcuts.set(shortcut, for: action)
+  UserDefaults.standard.set(shortcuts.encoded(), forKey: "shortcuts"); applyShortcuts()
+ }
+ func restoreShortcuts() {
+  shortcuts = .defaults
+  UserDefaults.standard.set(shortcuts.encoded(), forKey: "shortcuts"); applyShortcuts()
+ }
+ func perform(_ action: ShortcutAction) {
+  switch action {
+  case .toggleCaptions: Task { if listening { await stop() } else if installed { await start() } }
+  case .toggleOverlay: if overlay?.isVisible == true { hideOverlay() } else { showOverlay() }
+  case .toggleExpanded: showOverlay(); toggleExpanded()
+  case .largerText: fontSize = min(48, fontSize + 2)
+  case .smallerText: fontSize = max(18, fontSize - 2)
+  case .toggleClickThrough: showOverlay(); clickThrough.toggle()
+  case .resetOverlay: showOverlay(); resetOverlay()
+  }
  }
  func refresh() {
   installed = model.exists
@@ -51,6 +82,7 @@ import UpdateCore
   feed.reset(placeholder: "Waiting for speech…")
   session = UUID(); let id = session
   let engine = Inference(); inference = engine
+  engine.setSpeed(updateSpeed)
   // The main queue keeps updates in order; a later pass replaces the tentative words of an earlier one.
   engine.onUpdate = { update in DispatchQueue.main.async { MainActor.assumeIsolated {
    guard self.session == id, self.listening else { return }
@@ -96,6 +128,7 @@ import UpdateCore
    let host = OverlayHost(rootView: CaptionOverlay(state: self, feed: feed))
    host.onHover = { [weak self] inside in self?.feed.hovering = inside }
    panel.contentView = host
+   panel.ignoresMouseEvents = clickThrough
    panel.minSize = NSSize(width: 400, height: 90)
    if !panel.setFrameUsingName("CaptionOverlay") { place(panel) }
    for name in [NSWindow.didMoveNotification, NSWindow.didEndLiveResizeNotification] {
@@ -194,7 +227,10 @@ struct ContentView: View {
  }
  var body: some View {
   VStack(alignment: .leading, spacing: 16) {
-   HStack { Text("Soundveil").font(.largeTitle.bold()); Spacer(); Text("ON DEVICE · ENGLISH").font(.caption).foregroundStyle(.secondary) }
+   HStack {
+    Text("Soundveil").font(.largeTitle.bold()); Spacer(); Text("ON DEVICE · ENGLISH").font(.caption).foregroundStyle(.secondary)
+    SettingsLink { Image(systemName: "gearshape") }.help("Settings").accessibilityLabel("Settings")
+   }
    Text("Live captions for Chrome videos and streams. Audio stays on this Mac.").foregroundStyle(.secondary)
    if let update = state.update { UpdateBanner(update: update, state: state) }
    Picker("Audio source", selection: $state.system) { Text("Chrome (all audible tabs)").tag(false); Text("System audio").tag(true) }.disabled(state.listening || state.busy)
@@ -218,7 +254,6 @@ struct ContentView: View {
     ProgressView(value: min(1, Double(state.level) * 10)).frame(width: 60).help("Captured audio level")
    }.help("Lower the threshold for quiet speech. Higher sensitivity also admits more noise and music.")
    HStack { Text("Caption size"); Slider(value: $state.fontSize, in: 18...48, step: 1); Text("\(Int(state.fontSize)) pt").monospacedDigit() }
-   Toggle("Highlight sound words and slang", isOn: $state.highlightWords).help("Words like \"haha\" and \"bruh\" stand out in the caption overlay. Laughter and music cues appear either way.")
    HStack {
     Text(state.status).font(.callout).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
     if state.needsPermission {
@@ -241,6 +276,7 @@ struct ContentView: View {
  @StateObject private var state = AppState()
  @AppStorage("checkForUpdates") private var autoCheck = true
  var body: some Scene {
+  Settings { SettingsView(state: state) }
   WindowGroup { ContentView(state: state).task { if autoCheck { await state.checkForUpdates(manual: false) } } }
    .commands { CommandGroup(after: .appInfo) {
     Button("Check for Updates…") { Task { await state.checkForUpdates(manual: true) } }

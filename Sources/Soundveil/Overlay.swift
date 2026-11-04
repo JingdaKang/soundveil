@@ -188,6 +188,7 @@ struct OverlayControls: View {
    button("textformat.size.smaller", "Smaller text") { state.fontSize = max(18, state.fontSize - 2) }
    button("textformat.size.larger", "Larger text") { state.fontSize = min(48, state.fontSize + 2) }
    button(feed.expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right", feed.expanded ? "Collapse" : "Expand") { state.toggleExpanded() }
+   button("cursorarrow.rays", "Click through overlay") { state.clickThrough = true }
    button("xmark", "Hide captions") { state.hideOverlay() }
   }
   .padding(.horizontal, 3).background(Color.black.opacity(0.72), in: Capsule())
