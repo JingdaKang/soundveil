@@ -74,6 +74,6 @@ struct SettingsView: View {
     HStack { Spacer(); Button("Restore Defaults") { state.restoreShortcuts() } }
    }
   }
-  .formStyle(.grouped).frame(width: 500, height: 620)
+  .formStyle(.grouped).frame(width: 500, height: 700)
  }
 }
