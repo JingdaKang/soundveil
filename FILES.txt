@@ -7,19 +7,25 @@ README.md
 Sources/CWhisperBridge/Bridge.c
 Sources/CWhisperBridge/include/Bridge.h
 Sources/CaptionCore/Pipeline.swift
+Sources/CaptionCore/Rolling.swift
 Sources/Soundveil/App.swift
 Sources/Soundveil/Capture.swift
 Sources/Soundveil/Inference.swift
 Sources/Soundveil/Models.swift
+Sources/Soundveil/Overlay.swift
 Sources/Soundveil/Updates.swift
 Sources/UpdateCore/Release.swift
 Sources/SmokeCheck/main.swift
+Sources/StreamCheck/main.swift
+Sources/WhisperEngine/Recognizer.swift
 Tests/CaptionCoreTests/PipelineTests.swift
+Tests/CaptionCoreTests/RollingTests.swift
 Tests/UpdateCoreTests/ReleaseTests.swift
 VALIDATION.md
 scripts/build.sh
 scripts/package-dmg.sh
 scripts/release.sh
+scripts/setup-signing.sh
 scripts/test.sh
 FILES.txt
 dist/Soundveil.app/ (generated application bundle)
