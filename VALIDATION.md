@@ -14,9 +14,11 @@
 
 **Not verified:** Whisper reported no cue on synthetic applause or music, and invented
 "Thank you." over the music, so the laughter, applause, and music pills are unproven on
-real audio. The controls were tested with hover forced on, so appearing on real pointer
-hover needs a live check. Highlighting has only been seen on synthetic speech, which
-misheard "Bruh" as "Bra" and most of "Ha ha ha".
+real audio. Highlighting has only been seen on synthetic speech, which misheard "Bruh" as
+"Bra" and most of "Ha ha ha". Chrome-only capture passed an audio probe but has not been
+confirmed through full captions on the installed build.
+
+The owner confirmed the controls appear on real pointer hover.
 
 ## Rolling captions — 4 November 2026
 
