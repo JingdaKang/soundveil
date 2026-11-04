@@ -1,5 +1,36 @@
 # Validation — 3 November 2026
 
+## Rolling captions — 4 November 2026
+
+Replaces the five-second windows. Measured offline with `StreamCheck` on an Apple M4 Pro
+with Large v3 Turbo: real decoding on a simulated live clock, so audio "arrives" while
+each pass runs. Word error is against the known text. The speech is macOS `say` output,
+except `jfk.wav`. The noisy clip adds noise and a 220 Hz tone that hide the pauses.
+
+| Audio | Length | First shown, mean (p95) | Final text, mean | On-screen words replaced | Word error |
+|---|---|---|---|---|---|
+| US voice | 93 s | 0.33 s (0.79 s) | 2.35 s | 15% | 0.7% |
+| British voice | 97 s | 0.34 s (0.81 s) | 2.57 s | 21% | 0.7% |
+| Fast speech | 50 s | 0.60 s (1.74 s) | 3.64 s | 11% | 0.7% |
+| Noisy | 93 s | 1.22 s (3.83 s) | 5.80 s | 42% | 8.0% |
+
+- A single offline pass over the US voice scored 0.7%, so the live result matches it.
+- Passes took 211 ms on average (p95 236 ms) with no skipped audio.
+- `jfk.wav`, the only real speech tested offline, was word for word correct except for
+  an invented "Yeah!" at the breath at the end.
+- Unit tests: 45 cases pass. The overlay view was rendered to images and showed left-aligned
+  roll-up, dimmed tentative words, stable wrapping, and a larger text size correctly.
+
+What the measurements changed, with results in README.md: prompts removed, audio cut at
+pauses instead of on Whisper's word timestamps, one fixed audio context, and two passes
+required to change the screen.
+
+**Not verified:** this pipeline has not run on live Chrome audio. The overlay's animation
+and smoothness have not been seen in a real window, because the screen was locked during
+the work. These delay figures are offline and exclude capture delay. Real speech beyond
+`jfk.wav`, music, long runs, thermal behavior, and Large v3 were not tested. The
+`setup-signing.sh` script has not been run, so permission surviving a rebuild is unproven.
+
 ## Live caption test — 4 November 2026
 
 First end-to-end run: the installed v0.1.0 DMG build, Large v3 Turbo, Chrome mode, and
@@ -18,19 +49,19 @@ about three minutes of a spoken YouTube talk played by the owner.
 
 Problems found:
 
-- **Chrome on another Space:** capture lists on-screen windows only, so Start fails
-  with "Open Chrome and start playing a video" if no Chrome window is on the current
-  desktop. A visible Chrome window at Start avoids it; capture then continues.
+- **Chrome on another Space:** capture listed on-screen windows only, so Start failed
+  with "Open Chrome and start playing a video" if no Chrome window was on the current
+  desktop. Since fixed; the fix has not been tested live.
 - **Permission after an update:** macOS stores the signature with the permission. After
   installing a new ad-hoc build the switch stayed on while capture was refused, and
   turning it off and on did not update the stored signature.
   `tccutil reset ScreenCapture org.soundveil.mac` did.
 - **Repeated words:** overlap removal missed a near match ("storage IOS" then "storage
-  IO") and showed the phrase twice.
-- **Punctuation:** capitals and punctuation mostly disappeared after the first lines.
-  The cause was not investigated.
-- **Messages:** the launch status asks for a model download when one is installed, and
-  errors run macOS's raw text into the app's advice.
+  IO") and showed the phrase twice. Windows no longer overlap.
+- **Punctuation:** capitals and punctuation mostly disappeared after the first lines,
+  because unpunctuated text was fed back as the prompt. There is no prompt now.
+- **Messages:** the launch status asked for a model download when one was installed, and
+  errors ran macOS's raw text into the app's advice. Both fixed.
 
 Not tested: accuracy against a reference transcript, a ten-minute run, overlay behavior
 over full-screen video or across Spaces, mute/unmute, sleep/wake, display changes, and
