@@ -18,5 +18,11 @@ cp .build/release/Soundveil "$APP/Contents/MacOS/Soundveil"
 cp Info.plist "$APP/Contents/Info.plist"
 cp LICENSE "$APP/Contents/Resources/LICENSE.txt"
 cp vendor/whisper.cpp/LICENSE "$APP/Contents/Resources/whisper-LICENSE.txt"
-codesign --force --sign - "$APP"
+IDENTITY="${SOUNDVEIL_SIGN_IDENTITY:-Soundveil Local Signing}"
+if security find-certificate -c "$IDENTITY" >/dev/null 2>&1; then
+ codesign --force --sign "$IDENTITY" --identifier org.soundveil.mac "$APP"
+else
+ echo "warning: no \"$IDENTITY\" identity; ad-hoc signing. Recording permission will not survive this build. See scripts/setup-signing.sh." >&2
+ codesign --force --sign - "$APP"
+fi
 echo "Built: $APP"
