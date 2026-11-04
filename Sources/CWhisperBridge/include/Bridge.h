@@ -2,6 +2,7 @@
 #include <stdint.h>
 typedef void * FCContext;
 FCContext fc_create(const char *path);
+FCContext fc_create_device(const char *path, int use_gpu);
 void fc_destroy(FCContext ctx);
 int fc_transcribe(FCContext ctx, const float *samples, int count, const char *prompt);
 int fc_count(FCContext ctx);

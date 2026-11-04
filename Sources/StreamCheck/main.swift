@@ -43,7 +43,7 @@ func errorRate(_ reference: [String], _ hypothesis: [String]) -> Double {
 func percentile(_ values: [Double], _ p: Double) -> Double { let s = values.sorted(); return s.isEmpty ? 0 : s[min(s.count-1, Int(Double(s.count) * p))] }
 func mean(_ values: [Double]) -> Double { values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count) }
 let samples = try load(paths[1]) + Array(repeating: Float(0), count: 24000)
-guard let recognizer = Recognizer(path: paths[0]) else { fatalError("Model load failed") }
+guard let recognizer = Recognizer(path: paths[0], useGPU: options["cpu"] == nil) else { fatalError("Model load failed") }
 if options["cues"] == 0 { recognizer.allowCues = false }
 var gate = SpeechGate()
 var transcriber = RollingTranscriber()
@@ -98,7 +98,8 @@ while true {
  }
  let began = Date()
  let words = recognizer.decode(job) ?? []
- let took = Date().timeIntervalSince(began)
+ let took = Date().timeIntervalSince(began) * (options["slow"] ?? 1) // slow=3 simulates a Mac three times slower.
+ if options["auto"] != nil, !job.isFinal { transcriber.step = updateInterval(.auto, passTime: took, constrained: options["auto"] == 2) }
  passes.append(took); lengths.append(Double(job.samples.count)/16000); if job.isFinal { finals.append(took) }
  now += took; feed(until: now)
  record(transcriber.complete(job, words: words))

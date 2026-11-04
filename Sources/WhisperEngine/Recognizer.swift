@@ -5,8 +5,8 @@ import CWhisperBridge
 public final class Recognizer: @unchecked Sendable {
  private let context: FCContext
  public var allowCues = true
- public init?(path: String) {
-  guard let context = fc_create(path) else { return nil }
+ public init?(path: String, useGPU: Bool = true) {
+  guard let context = fc_create_device(path, useGPU ? 1 : 0) else { return nil }
   self.context = context
  }
  deinit { fc_destroy(context) }

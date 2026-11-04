@@ -5,6 +5,11 @@ FCContext fc_create(const char *path) {
  p.use_gpu = true;
  return whisper_init_from_file_with_params(path, p);
 }
+FCContext fc_create_device(const char *path, int use_gpu) {
+ struct whisper_context_params p = whisper_context_default_params();
+ p.use_gpu = use_gpu;
+ return whisper_init_from_file_with_params(path, p);
+}
 void fc_destroy(FCContext c) { if(c) whisper_free(c); }
 int fc_transcribe(FCContext c, const float *s, int n, const char *prompt) {
  struct whisper_full_params p = whisper_full_default_params(WHISPER_SAMPLING_BEAM_SEARCH);
