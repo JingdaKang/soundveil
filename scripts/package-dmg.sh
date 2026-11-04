@@ -30,7 +30,7 @@ Requires Apple Silicon and macOS 14 or later.
 4. Grant the macOS recording permission when prompted.
 
 Model weights are downloaded separately; they are not included in this image.
-This development build is ad-hoc signed and is not notarized by Apple.
+This build has no Apple Developer ID and is not notarized by Apple.
 EOF
 
 hdiutil create -volname Soundveil -srcfolder "$STAGING/contents" \

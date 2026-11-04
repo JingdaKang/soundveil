@@ -118,7 +118,7 @@ plus a `.sha256` checksum. It contains `Soundveil.app`, an `Applications` shortc
 and installation instructions. Open the DMG, drag the app onto Applications,
 eject the image, and launch the installed app. Models download separately.
 
-This is an ad-hoc-signed development build, not a notarized public release.
+This build has no Apple Developer ID and is not notarized.
 Creating a DMG does not change macOS Gatekeeper trust. A normal public release
 requires a separate Developer ID signing and Apple notarization workflow;
 see [Apple's distribution guidance](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).

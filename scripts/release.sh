@@ -32,7 +32,7 @@ gh release create "$TAG" "dist/$NAME" "dist/$NAME.sha256" --target "$(git rev-pa
 Open the disk image and drag Soundveil onto Applications, replacing the old copy.
 Requires Apple Silicon and macOS 14 or later. Downloaded models are kept.
 
-This build is ad-hoc signed and not notarized. If macOS says it can't verify
+This build has no Apple Developer ID and is not notarized. If macOS says it can't verify
 Soundveil, open System Settings → Privacy & Security and choose Open Anyway.
 If captions are refused after updating while Soundveil is switched on under Screen &
 System Audio Recording, run `tccutil reset ScreenCapture org.soundveil.mac`, click
