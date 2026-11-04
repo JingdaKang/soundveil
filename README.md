@@ -12,8 +12,10 @@ Open `dist/Soundveil.app` in Finder. This locally built app is ad-hoc signed, no
 2. Choose **Large v3 Turbo**, then **Download model (free)**. It needs about 1.6 GB of disk space; **Large v3** needs about 3.1 GB. Downloads stream to disk, support cancellation, and install only after completion and a GGML header check. Files are not cryptographically verified by this MVP.
 3. Select **Chrome (all audible tabs)** and **Start captions**.
 4. Accept macOS's native recording-permission prompt. Depending on macOS, the setting is named **Screen Recording** or **Screen & System Audio Recording** under **System Settings → Privacy & Security**. Enable Soundveil and relaunch if requested. The app uses ScreenCaptureKit's native authorization flow; it cannot grant itself access.
-5. Drag the caption panel to your preferred position. Resize at its edges, adjust caption size in the main window, or hide/show it. It floats above ordinary windows and requests full-screen/Spaces participation; exclusive full-screen applications may behave differently.
-6. Stop before changing source, model, or quiet-speech threshold. Stop discards unfinished audio and waits for any current inference call to finish before unloading the model.
+5. Drag the caption panel to your preferred position. Resize at its edges, adjust caption size in the main window, or hide/show it. A taller panel shows more lines, and its size, position, and the caption size are remembered. It floats above ordinary windows and requests full-screen/Spaces participation; exclusive full-screen applications may behave differently.
+6. Stop before changing source, model, or quiet-speech threshold. Stop keeps the words already shown and waits for any current inference call to finish before unloading the model.
+
+Captions roll up from the bottom of the panel. Words appear about a third of a second after they are spoken, dimmed while they may still change, and turn solid once two recognition passes agree. When the speaker pauses, the phrase is finalized and may be corrected slightly. The status line shows how far behind live the captions are.
 
 The level indicator shows captured audio. If it stays empty, check Chrome playback, permissions, or try **System audio**. System mode includes other applications' sounds, excluding Soundveil itself. No BlackHole/loopback driver is required. ScreenCaptureKit needs a display-based filter even for audio capture; the app subscribes only to audio and never saves screen images.
 
@@ -33,12 +35,15 @@ Use **Open model folder** to install compatible GGML files manually or remove th
 
 ## Reproducible build
 
-Prerequisites: Apple Silicon, macOS 14+, full Xcode 16.2 or later with command-line tools selected, Git, and CMake 3.20+. The implementation was compiled against the installed macOS 15.2 SDK; it does not assume newer APIs are available. No developer subscription is required for a local ad-hoc-signed build.
+Prerequisites: Apple Silicon, macOS 14+, full Xcode 16.2 or later with command-line tools selected, Git, and CMake 3.20+. The implementation was compiled against the installed macOS 15.2 SDK; it does not assume newer APIs are available. No developer subscription is required.
+
+Run `./scripts/setup-signing.sh` once to create a self-signed code-signing identity in your login keychain. macOS stores the signing identity with the recording permission, so builds signed with it keep that permission. Without it, `build.sh` falls back to ad-hoc signing and warns, and every new build needs the recovery steps under [Updates](#updates). Your recording permission and updates depend on this key, so keep your keychain backed up. It is not an Apple-issued identity and does not change Gatekeeper trust.
 
 ```bash
 # Install CMake if necessary using Homebrew:
 brew install cmake
 # From this project's directory:
+./scripts/setup-signing.sh
 ./scripts/build.sh
 ./scripts/test.sh
 open dist/Soundveil.app
@@ -77,10 +82,11 @@ checks on demand and reports the result; **Check for Updates Automatically** tur
 launch-time check off. Drafts and prereleases are never offered, and automatic-check
 failures are silent.
 
-Ad-hoc signatures change with every build, and macOS stores the signature with the
-recording permission. After an update the switch in System Settings can stay on while
-capture is refused. To recover, run `tccutil reset ScreenCapture org.soundveil.mac`,
-click **Start captions**, turn Soundveil on again, and reopen it. Signed, in-place updates (for example with Sparkle) would
+macOS stores the app's signature with the recording permission. Moving from one
+signing identity to another, or between ad-hoc builds, can leave the switch in System
+Settings on while capture is refused. Turning it off and on does not help. To recover,
+run `tccutil reset ScreenCapture org.soundveil.mac`, click **Start captions**, turn
+Soundveil on again, and reopen it. Signed, in-place updates (for example with Sparkle) would
 require Developer ID signing and notarization.
 
 To publish a release, bump the last number of `CFBundleShortVersionString` in
@@ -102,31 +108,37 @@ package the app already in `dist/`. Requires the GitHub CLI (`gh`), signed in.
 flowchart LR
  C[Chrome or system audio] --> S[ScreenCaptureKit: serial capture queue]
  S --> R[AVAudioConverter: 48 kHz stereo to 16 kHz mono]
- R --> V[Energy VAD and 300 ms pre-roll]
- V --> W[6 s windows, 1 s overlap; 600 ms silence endpoint]
- W --> Q[One active decode and one replaceable pending window]
- Q --> M[whisper.cpp C bridge: serial worker, Metal]
- M --> D[Timestamp and text-overlap deduplication]
- D --> U[Main actor: SwiftUI history and floating NSPanel]
+ R --> V[Speech gate: pre-roll, pauses, endpoints]
+ V --> B[Bounded phrase buffer]
+ B --> P[Partial pass: greedy, display only]
+ B --> F[Final pass: beam search, cut at a pause]
+ P --> M[whisper.cpp C bridge: serial worker, Metal]
+ F --> M
+ M --> U[Main actor: word pacing, roll-up overlay, history]
 ```
 
-- Capture and conversion use one serial queue. Inference and context destruction use another; model loading never blocks the main actor. A lock protects the single pending window. UI work runs on the main actor. C pointers never cross into UI code.
-- Continuous speech emits every five seconds after the initial six-second window. Silence closes shorter utterances; speech bursts shorter than 100 ms are rejected. VAD is a lightweight RMS energy gate, **not a neural speech classifier**. Music/noise can trigger it; quiet speech can be missed. Lower the threshold for quieter speech, at the cost of admitting more noise.
-- Samples are copied out of ScreenCaptureKit buffers before returning. Stateful AVAudioConverter resamples and mixes to mono. Capture presentation timestamps detect discontinuities; gaps reset the audio window and resampler rather than joining unrelated audio.
-- Model segment timestamps are translated into the session timeline. Dedup removes already-covered segments and normalized suffix/prefix word overlap. This is heuristic; it is not perfect word alignment or a rolling partial-transcript decoder.
-- The last 600 characters of accepted captions condition the next decode. Explicit English language, no translation, beam search of five, and non-speech-token suppression are configured. Gaps reset context to reduce carry-over hallucinations.
-- If inference falls behind, the latest pending window replaces the older one. Status reports cumulative skipped windows. This bounds latency/memory **by deliberately losing coverage** under load. Switch to Turbo or close GPU-heavy workloads if this happens.
-- Stop prevents stale results from reaching the UI, drains native inference safely, and then frees its context. It is not an immediate GPU cancellation. Captions clear after ten seconds without new text.
+Whisper has no native streaming, so this follows the approach of [Whisper-Streaming](https://arxiv.org/abs/2307.14743) and [WhisperKit](https://arxiv.org/abs/2507.10860): re-decode growing audio, show a fast hypothesis, and confirm text as it stabilizes.
+
+- Capture and conversion use one serial queue. Inference and context destruction use another; model loading never blocks the main actor. A lock protects the transcriber state they share. UI work runs on the main actor. C pointers never cross into UI code.
+- **Partial passes** run back to back over the current phrase, one at a time and at least 0.2 s of new audio apart. They use greedy decoding and exist only for display.
+- **The screen changes only when two passes in a row agree.** Whisper's guess at a cut-off phrase can swing wildly between passes, so a lone outlier is ignored. New words at the end are the exception: one is shown ahead of agreement to keep up.
+- **Final passes** use beam search over the whole phrase and produce the transcript. A phrase ends at a pause of 200 ms once it is at least 2.5 s long, or at any 600 ms silence. Pauses are measured against the speaker's recent level, so they are still found over a noise floor. A run with no pause is cut at its quietest point after 9 s.
+- **Audio is cut at pauses because Whisper's word timestamps are not reliable enough to cut on**: they bunch at the end of the audio, and cutting on them lost whole phrases. Alignment-based timestamps (DTW) were accurate but more than doubled the cost of a pass.
+- **No prompt is passed to Whisper.** Earlier text echoed into the transcript and made it invent phrases (18.8% word error against 1.0% without), and unpunctuated text removed punctuation for good.
+- **The audio context is fixed at 640** rather than Whisper's 1500, about 3 s of headroom over the longest phrase. The encoder dominates the cost and scales with it. It must not vary between passes: mixing sizes in one whisper context made the passes that followed collapse into nonsense.
+- Phrases with under 250 ms of speech are not decoded, because Whisper invents text from silence. Tokens per pass are capped and repeated phrases are cut, which stops Whisper's loops.
+- If inference stalls, phrases awaiting a final pass are bounded at 24 s and the oldest is dropped. This bounds latency and memory **by deliberately losing coverage**, and the status line reports the seconds skipped. Partial passes always take the newest audio, so they cannot build a backlog.
+- The overlay places each word once from the words before it, so appended words never move text already on screen. Words fade in and a batch is staggered over about 0.3 s so it reads as a flow. Captions clear after eight seconds without new text.
 
 ## Quality, latency, and limitations
 
 Large v3 is the quality-oriented option; Turbo reduces decoding cost. Neither guarantees correct recognition of muffled, fast, accented, overlapping, or music-obscured speech. Source captions, if accurate and available, remain preferable to ASR. No denoising or source separation is included: aggressive filters can remove speech detail, and those features need separate evaluation.
 
-Expect seconds of delay: capture window/endpoint time **plus** model decoding. This MVP does not offer subsecond partial captions. Model loading and the first GPU inference may be slow; large models need several GB of working memory beyond download size. 16 GB or more unified memory is a practical starting recommendation, not a measured minimum. This build has not been benchmarked with the two large models. Heat, Chrome playback, and other GPU work affect throughput.
+`VALIDATION.md` has measured latency. Words on screen can still change until their phrase is finalized, usually within a few seconds. Noise that hides pauses makes phrases longer, which slows finalization and raises the error rate. Model loading can take up to a minute the first time a build runs, while macOS compiles the Metal shaders; later loads take seconds. Large models need several GB of working memory beyond download size. 16 GB or more unified memory is a practical starting recommendation, not a measured minimum. Large v3 has not been benchmarked with this pipeline. Heat, Chrome playback, and other GPU work affect throughput.
 
-Chrome mode captures the application, **not an individual tab or window's independent audio track**. macOS window selection does not reliably provide per-tab audio isolation. Chrome Beta/Canary bundle identifiers under `com.google.Chrome.*` are included. Keep a Chrome window on the current desktop when you click **Start captions**: windows on another Space are not found, and the app wrongly reports that Chrome needs opening. Protected/DRM content may be silent or unavailable. Chrome helper audio routing, fullscreen placement, sleep/wake, and display changes need interactive verification on your Mac; restart capture after a display/source interruption.
+Chrome mode captures the application, **not an individual tab or window's independent audio track**. macOS window selection does not reliably provide per-tab audio isolation. Chrome Beta/Canary bundle identifiers under `com.google.Chrome.*` are included. Protected/DRM content may be silent or unavailable. Chrome helper audio routing, fullscreen placement, sleep/wake, and display changes need interactive verification on your Mac; restart capture after a display/source interruption.
 
-The overlay has a transparent window with a translucent dark caption background, white scalable text, and accessibility labels. Long segments fit up to four lines; the full text remains in history. This first version has no click-through toggle, neural VAD, automatic reconnect, download resume, or background transcript persistence.
+The overlay has a transparent window with a translucent dark caption background, white scalable text, and accessibility labels. The full text remains in history, grouped into sentences. This version has no click-through toggle, neural VAD, automatic reconnect, download resume, or background transcript persistence.
 
 ## Optional Core ML encoder
 
@@ -147,13 +159,15 @@ See `VALIDATION.md` for checks actually performed. Run the automated core tests 
 ./scripts/test.sh
 ```
 
-An additional native inference smoke executable exercises the C bridge and AVAudioConverter without recording permission:
+Native checks run without recording permission. `StreamCheck` replays a recording through the rolling pipeline on a simulated live clock, using the real model, and reports caption delay, on-screen changes, and word error against an optional reference text. It does not exercise ScreenCaptureKit, the overlay, or real playback. `SmokeCheck` exercises the C bridge and AVAudioConverter.
 
 ```bash
 # Supply any compatible local GGML model; tiny.en is sufficient for plumbing checks.
 CLANG_MODULE_CACHE_PATH="$PWD/.build/ModuleCache" \
   swift run --disable-sandbox --cache-path "$PWD/.build/cache" \
   SmokeCheck /absolute/path/ggml-tiny.en.bin vendor/whisper.cpp/samples/jfk.wav
+# After build.sh, with an optional reference transcript and show=1 for a timeline:
+.build/release/StreamCheck /absolute/path/ggml-large-v3-turbo.bin vendor/whisper.cpp/samples/jfk.wav
 ```
 
 For manual acceptance, test permission denial/retry, Chrome and system capture, mute/unmute, quiet speech, fast/accented clips, long continuous speech, repeated words, switching models after Stop, canceling a download, fullscreen/Spaces, and stopping during inference. Verify caption lag and skipped-window count during a ten-minute stream. No automated test can establish recognition quality for your content without representative audio and a reference transcript.
@@ -162,18 +176,23 @@ For manual acceptance, test permission denial/retry, Chrome and system capture, 
 
 - `Package.swift`: Swift package, static native linkage, optional Core ML linkage.
 - `Info.plist`: app identity, deployment target, recording usage description.
-- `Sources/CaptionCore/Pipeline.swift`: chunking/VAD, timestamped captions, deduplication, bounded queue.
+- `Sources/CaptionCore/Pipeline.swift`: speech gate, pause detection, words, sentence grouping.
+- `Sources/CaptionCore/Rolling.swift`: rolling transcriber, display agreement, word placement, pacing.
 - `Sources/CWhisperBridge/include/Bridge.h`, `Sources/CWhisperBridge/Bridge.c`: narrow native inference API.
-- `Sources/Soundveil/App.swift`: SwiftUI controls, session lifecycle, overlay, history/export.
+- `Sources/WhisperEngine/Recognizer.swift`: decodes a job and rebuilds words from Whisper's tokens.
+- `Sources/Soundveil/App.swift`: SwiftUI controls, session lifecycle, history/export.
+- `Sources/Soundveil/Overlay.swift`: word feed and roll-up caption overlay.
 - `Sources/Soundveil/Capture.swift`: ScreenCaptureKit, PCM extraction, resampling, discontinuity handling, audio level.
-- `Sources/Soundveil/Inference.swift`: model worker, backpressure, prompt context, caption delivery.
+- `Sources/Soundveil/Inference.swift`: model worker and caption delivery.
 - `Sources/Soundveil/Models.swift`: model choices, local storage and download progress/cancellation.
 - `Sources/Soundveil/Updates.swift`: GitHub latest-release request.
 - `Sources/UpdateCore/Release.swift`: release-tag version parsing, ordering, and response decoding.
 - `Sources/SmokeCheck/main.swift`: offline native inference smoke test.
-- `Tests/CaptionCoreTests/PipelineTests.swift`: pipeline unit tests.
+- `Sources/StreamCheck/main.swift`: offline latency and accuracy harness.
+- `Tests/CaptionCoreTests/`: pipeline, rolling transcriber, and overlay layout unit tests.
 - `Tests/UpdateCoreTests/ReleaseTests.swift`: version and release-response unit tests.
 - `scripts/build.sh`, `scripts/test.sh`: reproducible build/package/sign and test commands.
+- `scripts/setup-signing.sh`: creates the local signing identity.
 - `scripts/package-dmg.sh`, `scripts/release.sh`: disk-image packaging and GitHub release publishing.
 - `README.md`, `VALIDATION.md`, `LICENSE`, `.gitignore`: documentation, evidence, MIT license, generated-artifact exclusions.
 - `vendor/whisper.cpp/`: downloaded upstream source and its own license, excluded from Git.
