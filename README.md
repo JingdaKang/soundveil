@@ -77,8 +77,10 @@ checks on demand and reports the result; **Check for Updates Automatically** tur
 launch-time check off. Drafts and prereleases are never offered, and automatic-check
 failures are silent.
 
-Ad-hoc signatures change with every build, so macOS may ask for recording permission
-again after an update. Signed, in-place updates (for example with Sparkle) would
+Ad-hoc signatures change with every build, and macOS stores the signature with the
+recording permission. After an update the switch in System Settings can stay on while
+capture is refused. To recover, run `tccutil reset ScreenCapture org.soundveil.mac`,
+click **Start captions**, turn Soundveil on again, and reopen it. Signed, in-place updates (for example with Sparkle) would
 require Developer ID signing and notarization.
 
 To publish a release, bump the last number of `CFBundleShortVersionString` in
@@ -122,7 +124,7 @@ Large v3 is the quality-oriented option; Turbo reduces decoding cost. Neither gu
 
 Expect seconds of delay: capture window/endpoint time **plus** model decoding. This MVP does not offer subsecond partial captions. Model loading and the first GPU inference may be slow; large models need several GB of working memory beyond download size. 16 GB or more unified memory is a practical starting recommendation, not a measured minimum. This build has not been benchmarked with the two large models. Heat, Chrome playback, and other GPU work affect throughput.
 
-Chrome mode captures the application, **not an individual tab or window's independent audio track**. macOS window selection does not reliably provide per-tab audio isolation. Chrome Beta/Canary bundle identifiers under `com.google.Chrome.*` are included. Protected/DRM content may be silent or unavailable. Chrome helper audio routing, fullscreen placement, sleep/wake, and display changes need interactive verification on your Mac; restart capture after a display/source interruption.
+Chrome mode captures the application, **not an individual tab or window's independent audio track**. macOS window selection does not reliably provide per-tab audio isolation. Chrome Beta/Canary bundle identifiers under `com.google.Chrome.*` are included. Keep a Chrome window on the current desktop when you click **Start captions**: windows on another Space are not found, and the app wrongly reports that Chrome needs opening. Protected/DRM content may be silent or unavailable. Chrome helper audio routing, fullscreen placement, sleep/wake, and display changes need interactive verification on your Mac; restart capture after a display/source interruption.
 
 The overlay has a transparent window with a translucent dark caption background, white scalable text, and accessibility labels. Long segments fit up to four lines; the full text remains in history. This first version has no click-through toggle, neural VAD, automatic reconnect, download resume, or background transcript persistence.
 
