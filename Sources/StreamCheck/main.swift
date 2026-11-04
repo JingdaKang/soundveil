@@ -44,6 +44,7 @@ func percentile(_ values: [Double], _ p: Double) -> Double { let s = values.sort
 func mean(_ values: [Double]) -> Double { values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count) }
 let samples = try load(paths[1]) + Array(repeating: Float(0), count: 24000)
 guard let recognizer = Recognizer(path: paths[0]) else { fatalError("Model load failed") }
+if options["cues"] == 0 { recognizer.allowCues = false }
 var gate = SpeechGate()
 var transcriber = RollingTranscriber()
 if let v = options["step"] { transcriber.step = v }
