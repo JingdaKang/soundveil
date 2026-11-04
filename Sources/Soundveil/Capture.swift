@@ -17,14 +17,15 @@ final class Capture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
  var onError: (@Sendable (String) -> Void)?
  func start(system: Bool, threshold: Float) async throws {
   chunker.threshold = threshold
-  let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+  // Include off-screen windows: Chrome is often on another Space or full screen.
+  let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
   guard let display = content.displays.first else { throw AppError.message("No display is available for audio capture.") }
   let filter: SCContentFilter
   if system {
    filter = SCContentFilter(display: display, excludingApplications: content.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }, exceptingWindows: [])
   } else {
    let apps = content.applications.filter { $0.bundleIdentifier == "com.google.Chrome" || $0.bundleIdentifier.hasPrefix("com.google.Chrome.") }
-   guard !apps.isEmpty else { throw AppError.message("Open Chrome and start playing a video, then try again.") }
+   guard !apps.isEmpty else { throw AppError.message("Open Chrome and play a video, then start captions.") }
    filter = SCContentFilter(display: display, including: apps, exceptingWindows: [])
   }
   let config = SCStreamConfiguration()
