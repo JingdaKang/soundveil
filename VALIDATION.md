@@ -1,5 +1,23 @@
 # Validation — 3 November 2026
 
+## Model options — 4 November 2026
+
+The app now offers Base, Small, and Large v3 Turbo Compressed beside Large v3 Turbo and
+Large v3. Turbo stays the default, and the choice is saved between launches.
+
+Checked:
+
+- Download sizes, from Hugging Face response headers: 147,964,211 bytes (Base), 487,614,201
+  (Small), 574,041,195 (Turbo Compressed). The weights themselves were not downloaded.
+- In a separate test copy: a saved choice returns after relaunch, its title and description
+  show, and a model that isn't downloaded offers Download and disables Start captions.
+- By reading the code: token handling asks each model for its own token numbers, and
+  whisper.cpp skips the language token for English-only models.
+
+Not checked: none of the three new models has been downloaded, loaded, or run. Their
+accuracy, speed, memory use, whether the 640 audio context suits them, and the first
+download through the app are all unknown. Their descriptions are guidance, not measurements.
+
 ## Resource use and shortcuts — 4 November 2026
 
 Measured with `StreamCheck` on an M4 Pro with Large v3 Turbo. GPU busy is passes times mean
