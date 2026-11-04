@@ -5,20 +5,20 @@ import CaptionCore
 final class Capture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
  private let queue = DispatchQueue(label: "Soundveil.capture", qos: .userInitiated)
  private var stream: SCStream?
- private var chunker = Chunker()
+ private var gate = SpeechGate()
  private var converter: AVAudioConverter?
  private var inputFormat: AVAudioFormat?
  private var accepting = true
  private var levelTick = 0
  private var origin: Double?
  private var expectedPTS: Double?
- var onChunk: (@Sendable (AudioChunk) -> Void)?
+ var onEvents: (@Sendable ([SpeechEvent]) -> Void)?
  var onLevel: (@Sendable (Float) -> Void)?
  var onError: (@Sendable (String) -> Void)?
  func start(system: Bool, threshold: Float) async throws {
-  chunker.threshold = threshold
+  gate.threshold = threshold
   // Include off-screen windows: Chrome is often on another Space or full screen.
-  let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+  let content = try await permitted { try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false) }
   guard let display = content.displays.first else { throw AppError.message("No display is available for audio capture.") }
   let filter: SCContentFilter
   if system {
@@ -38,12 +38,16 @@ final class Capture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
   let stream = SCStream(filter: filter, configuration: config, delegate: self)
   try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
   self.stream = stream
-  try await stream.startCapture()
+  try await permitted { try await stream.startCapture() }
+ }
+ private func permitted<T>(_ work: () async throws -> T) async throws -> T {
+  do { return try await work() }
+  catch where (error as NSError).code == SCStreamError.Code.userDeclined.rawValue { throw AppError.permission }
  }
  func stop() async {
   try? await stream?.stopCapture(); stream = nil
   await withCheckedContinuation { continuation in
-   queue.async { self.accepting = false; self.chunker = Chunker(); self.converter = nil; continuation.resume() }
+   queue.async { self.accepting = false; self.gate = SpeechGate(); self.converter = nil; continuation.resume() }
   }
  }
  func stream(_ stream: SCStream, didStopWithError error: Error) { onError?(error.localizedDescription) }
@@ -55,8 +59,9 @@ final class Capture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
   guard pts.isFinite else { return }
   if origin == nil { origin = pts }
   if let expectedPTS, abs(pts - expectedPTS) > 0.25 {
-   let threshold = chunker.threshold
-   chunker = Chunker(start: max(0, pts - (origin ?? pts))); chunker.threshold = threshold; converter?.reset()
+   let threshold = gate.threshold
+   gate = SpeechGate(start: max(0, pts - (origin ?? pts))); gate.threshold = threshold; converter?.reset()
+   onEvents?([.gap])
   }
   expectedPTS = pts + Double(sampleBuffer.numSamples)/format.sampleRate
   guard let input = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(sampleBuffer.numSamples)) else { return }
@@ -80,6 +85,7 @@ final class Capture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
    levelTick = 0
    onLevel?(sqrt(samples.reduce(Float(0)) { $0 + $1*$1 } / Float(samples.count)))
   }
-  for chunk in chunker.append(samples) { onChunk?(chunk) }
+  let events = gate.append(samples)
+  if !events.isEmpty { onEvents?(events) }
  }
 }

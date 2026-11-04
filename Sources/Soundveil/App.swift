@@ -8,9 +8,9 @@ import UpdateCore
  @Published var system = false
  @Published var vadDB: Double = -50
  @Published var level: Float = 0
- @Published var fontSize: Double = 28
+ @Published var fontSize: Double { didSet { UserDefaults.standard.set(fontSize, forKey: "captionSize"); feed.fontSize = fontSize } }
  @Published var status = "Download a model to get started."
- @Published var caption = "Your live English captions appear here"
+ @Published var needsPermission = false
  @Published var history: [Caption] = []
  @Published var busy = false
  @Published var listening = false
@@ -23,8 +23,13 @@ import UpdateCore
  private var download: ModelDownload?
  private var overlay: NSPanel?
  private var session = UUID()
- private var expire: Task<Void, Never>?
  private var checked = false
+ let feed = CaptionFeed()
+ init() {
+  let saved = UserDefaults.standard.double(forKey: "captionSize")
+  fontSize = saved > 0 ? saved : 28
+  feed.fontSize = fontSize
+ }
  func refresh() {
   installed = model.exists
   if !listening, !busy, !downloading { status = installed ? "Ready. Play a video in Chrome, then start captions." : "Download a model to get started." }
@@ -38,23 +43,21 @@ import UpdateCore
  func cancelDownload() { download?.cancel() }
  func start() async {
   guard !busy, !listening else { return }
-  busy = true; status = "Loading model into memory…"; history = []; caption = "Waiting for speech…"
+  busy = true; needsPermission = false; status = "Loading the model. The first run can take up to a minute…"; history = []
+  feed.reset(placeholder: "Waiting for speech…")
   session = UUID(); let id = session
   let engine = Inference(); inference = engine
-  engine.onCaption = { item in Task { @MainActor in
+  // The main queue keeps updates in order; a later pass replaces the tentative words of an earlier one.
+  engine.onUpdate = { update in DispatchQueue.main.async { MainActor.assumeIsolated {
    guard self.session == id, self.listening else { return }
-   self.history.append(item); if self.history.count > 2000 { self.history.removeFirst(self.history.count - 2000) }
-   self.caption = item.text
-   self.expire?.cancel(); self.expire = Task { @MainActor in
-    try? await Task.sleep(for: .seconds(10)); if !Task.isCancelled { self.caption = "" }
-   }
-  }}
+   self.receive(update)
+  }}}
   engine.onStatus = { text in Task { @MainActor in if self.session == id { self.status = text } } }
   do {
    try await engine.load(path: model.file.path)
    status = "Requesting screen and system audio permission…"
    let capture = Capture(); self.capture = capture
-   capture.onChunk = { [weak engine] in engine?.submit($0) }
+   capture.onEvents = { [weak engine] in engine?.submit($0) }
    capture.onLevel = { level in Task { @MainActor in if self.session == id { self.level = level } } }
    capture.onError = { message in Task { @MainActor in
     guard self.session == id else { return }; await self.stop(); self.status = message
@@ -62,28 +65,34 @@ import UpdateCore
    try await capture.start(system: system, threshold: Float(pow(10, vadDB/20)))
    listening = true; busy = false; status = "Listening · play a video in Chrome"; showOverlay()
   } catch {
-   await capture?.stop(); capture = nil; await engine.stop(); inference = nil
-   status = "\(error.localizedDescription) If access was denied, enable Soundveil in System Settings → Privacy & Security → Screen & System Audio Recording, then relaunch."
-   busy = false
+   await capture?.stop(); capture = nil; _ = await engine.stop(); inference = nil
+   if case AppError.permission = error { needsPermission = true }
+   status = error.localizedDescription; feed.reset(placeholder: ""); busy = false
   }
+ }
+ private func receive(_ update: CaptionUpdate) {
+  feed.apply(update)
+  history += update.sentences
+  if history.count > 2000 { history.removeFirst(history.count - 2000) }
  }
  func stop() async {
   guard !busy else { return }
-  busy = true; listening = false; level = 0; session = UUID(); expire?.cancel(); caption = "Stopped"
-  status = "Stopping (finishing current model call)…"
+  busy = true; listening = false; level = 0; session = UUID()
+  status = "Stopping…"
   await capture?.stop(); capture = nil
-  await inference?.stop(); inference = nil
-  busy = false; status = "Stopped"
+  if let update = await inference?.stop() { receive(update) }
+  inference = nil; busy = false; status = "Stopped"
  }
  func showOverlay() {
   if overlay == nil {
-   let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 850, height: 180), styleMask: [.borderless, .nonactivatingPanel, .resizable], backing: .buffered, defer: false)
+   let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 850, height: 156), styleMask: [.borderless, .nonactivatingPanel, .resizable], backing: .buffered, defer: false)
    panel.isFloatingPanel = true; panel.level = .floating; panel.isOpaque = false; panel.backgroundColor = .clear
    panel.hasShadow = false; panel.isMovableByWindowBackground = true
    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-   panel.contentView = NSHostingView(rootView: CaptionOverlay(state: self))
-   if let screen = NSScreen.main { panel.setFrameOrigin(NSPoint(x: screen.visibleFrame.midX - 425, y: screen.visibleFrame.minY + 65)) }
-   panel.minSize = NSSize(width: 400, height: 100); overlay = panel
+   panel.contentView = NSHostingView(rootView: CaptionOverlay(feed: feed))
+   panel.minSize = NSSize(width: 400, height: 90)
+   if !panel.setFrameUsingName("CaptionOverlay"), let screen = NSScreen.main { panel.setFrameOrigin(NSPoint(x: screen.visibleFrame.midX - 425, y: screen.visibleFrame.minY + 65)) }
+   panel.setFrameAutosaveName("CaptionOverlay"); overlay = panel
   }
   overlay?.orderFrontRegardless()
  }
@@ -114,17 +123,6 @@ import UpdateCore
    do { try history.map { String(format: "[%02d:%02d] %@", Int($0.start)/60, Int($0.start)%60, $0.text) }.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8) }
    catch { status = error.localizedDescription }
   }
- }
-}
-struct CaptionOverlay: View {
- @ObservedObject var state: AppState
- var body: some View {
-  Text(state.caption).font(.system(size: state.fontSize, weight: .semibold)).foregroundStyle(.white)
-   .multilineTextAlignment(.center).lineLimit(4).minimumScaleFactor(0.75)
-   .padding(18).frame(maxWidth: .infinity, maxHeight: .infinity)
-   .background(.black.opacity(state.caption.isEmpty ? 0.05 : 0.78), in: RoundedRectangle(cornerRadius: 16))
-   .padding(6).accessibilityLabel("Live captions").accessibilityValue(state.caption)
-   .help("Drag to move; resize from an edge. Hide using the main window.")
  }
 }
 struct UpdateBanner: View {
@@ -173,7 +171,12 @@ struct ContentView: View {
     ProgressView(value: min(1, Double(state.level) * 10)).frame(width: 60).help("Captured audio level")
    }.help("Lower the threshold for quiet speech. Higher sensitivity also admits more noise and music.")
    HStack { Text("Caption size"); Slider(value: $state.fontSize, in: 18...48, step: 1); Text("\(Int(state.fontSize)) pt").monospacedDigit() }
-   Text(state.status).font(.callout).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+   HStack {
+    Text(state.status).font(.callout).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+    if state.needsPermission {
+     Button("Open Privacy Settings") { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!) }
+    }
+   }
    Text("First use: allow Screen & System Audio Recording when macOS asks. No microphone access is used. Mute other Chrome tabs to isolate your video.").font(.caption).foregroundStyle(.secondary)
    Divider()
    HStack { Text("Caption history").font(.headline); Spacer(); Button("Export…") { state.export() }.disabled(state.history.isEmpty) }

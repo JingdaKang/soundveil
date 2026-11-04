@@ -1,32 +1,33 @@
 import Foundation
 import CaptionCore
-import CWhisperBridge
+import WhisperEngine
 
+// Capture adds audio and this queue decodes one rolling pass at a time, always over the
+// newest audio, so a slow pass delays captions by no more than its own length. If inference
+// stalls, the transcriber's bounded buffer drops the oldest audio and that coverage is lost.
 final class Inference: @unchecked Sendable {
  private let queue = DispatchQueue(label: "Soundveil.inference", qos: .userInitiated)
  private let lock = NSLock()
- private var pending = LatestQueue<AudioChunk>()
+ private var transcriber = RollingTranscriber()
  private var running = false
  private var enabled = true
- private var context: FCContext?
- private var prompt = ""
- private var previousEnd: Double = -1
- private var dedup = Deduplicator()
- var onCaption: (@Sendable (Caption) -> Void)?
+ private var recognizer: Recognizer?
+ private var lastStatus = Date.distantPast
+ var onUpdate: (@Sendable (CaptionUpdate) -> Void)?
  var onStatus: (@Sendable (String) -> Void)?
  func load(path: String) async throws {
   try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
    queue.async {
-    self.context = fc_create(path)
-    if self.context == nil { continuation.resume(throwing: AppError.message("Cannot load model. Check the download and available memory.")) }
+    self.recognizer = Recognizer(path: path)
+    if self.recognizer == nil { continuation.resume(throwing: AppError.message("Cannot load model. Check the download and available memory.")) }
     else { continuation.resume() }
    }
   }
  }
- func submit(_ chunk: AudioChunk) {
+ func submit(_ events: [SpeechEvent]) {
   lock.lock()
   guard enabled else { lock.unlock(); return }
-  pending.offer(chunk)
+  for event in events { transcriber.ingest(event) }
   let launch = !running; running = true
   lock.unlock()
   if launch { queue.async { self.drain() } }
@@ -34,42 +35,44 @@ final class Inference: @unchecked Sendable {
  private func drain() {
   while true {
    lock.lock()
-   let chunk = enabled ? pending.take() : nil
-   let dropped = pending.dropped
-   if chunk == nil { running = false }
+   let job = enabled ? transcriber.nextJob() : nil
+   if job == nil { running = false }
    lock.unlock()
-   guard let chunk else { return }
-   guard let context else { continue }
-   if chunk.start > previousEnd + 2 { prompt = ""; dedup = Deduplicator() }
+   guard let job else { return }
+   guard let recognizer else { continue }
    let began = Date()
-   let code = chunk.samples.withUnsafeBufferPointer { samples in
-    prompt.withCString { fc_transcribe(context, samples.baseAddress, Int32(samples.count), $0) }
-   }
-   lock.lock(); let publish = enabled; lock.unlock()
+   let words = recognizer.decode(job)
+   lock.lock()
+   let publish = enabled
+   let update = transcriber.complete(job, words: words ?? [])
+   let skipped = transcriber.skipped
+   lock.unlock()
    guard publish else { continue }
-   if code != 0 { onStatus?("Inference failed (\(code)). Stop and restart, or select a smaller model."); continue }
-   for i in 0..<fc_count(context) {
-    let start = chunk.start + Double(fc_start(context,i))/100
-    let end = min(chunk.end, chunk.start + Double(fc_end(context,i))/100)
-    guard end > start else { continue }
-    let text = String(cString: fc_text(context,i)).trimmingCharacters(in: .whitespacesAndNewlines)
-    if let caption = dedup.accept(Caption(start: start, end: end, text: text)) {
-     prompt = String((prompt + " " + caption.text).suffix(600)); onCaption?(caption)
-    }
+   if words == nil { onStatus?("Recognition failed. Stop and start again, or choose another model."); continue }
+   onUpdate?(update)
+   let now = Date()
+   if now.timeIntervalSince(lastStatus) >= 1 {
+    lastStatus = now
+    let coverage = skipped >= 1 ? String(format: " · %.0f s skipped", skipped) : ""
+    onStatus?(String(format: "Listening · about %.1f s behind", now.timeIntervalSince(began)) + coverage)
    }
-   previousEnd = chunk.end
-   onStatus?(String(format: "Listening · decode %.1fs · skipped windows %d", Date().timeIntervalSince(began), dropped))
   }
  }
- func stop() async {
-  lock.withLock { enabled = false; pending = LatestQueue() }
+ func stop() async -> CaptionUpdate {
+  let update = lock.withLock { enabled = false; return transcriber.finish() }
   await withCheckedContinuation { continuation in
-   queue.async { if let c = self.context { fc_destroy(c); self.context = nil }; continuation.resume() }
+   queue.async { self.recognizer = nil; continuation.resume() }
   }
+  return update
  }
- deinit { if let context { fc_destroy(context) } }
 }
 enum AppError: LocalizedError {
  case message(String)
- var errorDescription: String? { if case .message(let s) = self { return s }; return nil }
+ case permission
+ var errorDescription: String? {
+  switch self {
+  case .message(let text): return text
+  case .permission: return "Soundveil can't record audio yet. Turn it on in Privacy Settings, then reopen Soundveil."
+  }
+ }
 }
