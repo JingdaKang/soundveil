@@ -11,6 +11,7 @@ let package = Package(name: "Soundveil", platforms: [.macOS(.v14)], products: [.
  .target(name: "WhisperEngine", dependencies: ["CaptionCore", "CWhisperBridge"]),
  .executableTarget(name: "Soundveil", dependencies: ["CaptionCore", "WhisperEngine", "UpdateCore"]),
  .executableTarget(name: "SmokeCheck", dependencies: ["CWhisperBridge"]),
+ .executableTarget(name: "StreamCheck", dependencies: ["CaptionCore", "WhisperEngine"]),
  .testTarget(name: "CaptionCoreTests", dependencies: ["CaptionCore"]),
  .testTarget(name: "UpdateCoreTests", dependencies: ["UpdateCore"])
 ])
