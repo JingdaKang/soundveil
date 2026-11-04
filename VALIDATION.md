@@ -1,5 +1,34 @@
 # Validation — 3 November 2026
 
+## Resource use and shortcuts — 4 November 2026
+
+Measured with `StreamCheck` on an M4 Pro with Large v3 Turbo. GPU busy is passes times mean
+pass time divided by audio length, because the harness itself runs flat out and system
+GPU readings during it mean nothing.
+
+| Update every | GPU busy | First shown | On-screen words replaced |
+|---|---|---|---|
+| 0.2 s | 77% | 0.30 s | 12% |
+| 0.3 s | 56% | 0.37 s | 7% |
+| 0.4 s | 46% | 0.47 s | 2% |
+| 0.5 s | 37% | 0.61 s | 1% |
+| 0.75 s | 27% | 0.81 s | 0% |
+
+Those rows used a 30-second clip. On the 93-second clip, Automatic gave 49% busy, 0.61 s,
+and 0.7% replaced, with 0.7% word error. With its constrained setting: 28%, 1.01 s, 0.3%.
+
+Slower Macs were simulated by scaling each pass, so these are not tests on real hardware.
+Word error stayed at 0.7% and nothing was skipped at any speed. Words first appeared after
+1.75 s at 3× and 2.89 s at 5× under Automatic. CPU-only decoding was run for real on the M4
+Pro: 894 ms per pass, about 4.7× slower than the GPU. Peak memory was about 1.9 GB.
+
+66 unit tests pass in the caption and shortcut logic plus 6 for updates. The Settings
+window was seen in the running app.
+
+**Not verified:** global shortcuts firing, recording a new shortcut, and click-through
+have not been exercised, because they need real keys and pointer. Update speed has not been
+measured on live capture or real battery use, and the backoff has not run on real music.
+
 ## Expressive captions and overlay controls — 4 November 2026
 
 - 53 unit tests pass, including word detection for sound words, slang, shouted-only words,
