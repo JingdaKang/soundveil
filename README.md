@@ -9,7 +9,7 @@ A native SwiftUI macOS app for offline English captions of Chrome videos and liv
 Open `dist/Soundveil.app` in Finder. This locally built app is ad-hoc signed, not notarized. Keep it in a stable location so recording permissions remain associated with it.
 
 1. Open Chrome and play a video. Mute other audible Chrome tabs.
-2. Choose **Large v3 Turbo**, then **Download model (free)**. It needs about 1.6 GB of disk space; **Large v3** needs about 3.1 GB. Downloads stream to disk, support cancellation, and install only after completion and a GGML header check. Files are not cryptographically verified by this MVP.
+2. Choose a recognition model, then **Download model (free)**. **Large v3 Turbo** is the default and needs 1.6 GB of disk space; [Choosing a model](#choosing-a-model) covers the others. Downloads stream to disk, support cancellation, and install only after completion and a GGML header check. Files are not cryptographically verified by this MVP.
 3. Select **Chrome (all audible tabs)** and **Start captions**.
 4. Accept macOS's native recording-permission prompt. Depending on macOS, the setting is named **Screen Recording** or **Screen & System Audio Recording** under **System Settings → Privacy & Security**. Enable Soundveil and relaunch if requested. The app uses ScreenCaptureKit's native authorization flow; it cannot grant itself access.
 5. Drag the caption panel to your preferred position. Pointing at the panel shows its controls: smaller and larger text, expand, click through, and hide. Resize it from an edge or the corner grip; a larger panel shows more lines. **Expand** grows it upward for reading back, including text that has already faded. Size, position, and text size are remembered, and **Window → Reset Caption Overlay** restores the default. It floats above ordinary windows and requests full-screen/Spaces participation; exclusive full-screen applications may behave differently.
@@ -25,6 +25,9 @@ Models are stored at:
 
 ```text
 ~/Library/Application Support/FreeCaptions/Models/
+  ggml-base.en.bin
+  ggml-small.en.bin
+  ggml-large-v3-turbo-q5_0.bin
   ggml-large-v3-turbo.bin
   ggml-large-v3.bin
 ```
@@ -54,6 +57,20 @@ Open **Soundveil → Settings** or the gear in the main window.
 | Reset overlay | none |
 
 **Click through** lets clicks pass to whatever is behind the overlay, so it can sit over video controls. The overlay can't be dragged or show its controls until this is off, so turn it off with the shortcut or in Settings.
+
+## Choosing a model
+
+Large v3 Turbo is the default. Smaller models use less memory, and Base and Small also run faster. Soundveil remembers your choice, and you can download more than one.
+
+| Model | Download | Best for |
+|---|---|---|
+| Base | 148 MB | Older Macs or long battery life. Expect more mistakes, especially on names and fast speech. |
+| Small | 488 MB | Macs where the Large models fall behind. More accurate than Base and still light. |
+| Large v3 Turbo Compressed | 574 MB | Macs with 8 GB of memory. Close to Turbo's accuracy in much less memory. |
+| Large v3 Turbo | 1.6 GB | Most Macs with 16 GB or more. The best balance of accuracy and speed. |
+| Large v3 | 3.1 GB | Difficult audio, if you can accept captions running further behind. Needs far more memory. |
+
+Only Large v3 Turbo has been measured with live captions. The rest of this table is guidance from the models' sizes and their general behaviour, not measurements. If captions fall behind, try a slower **Update speed** first, then a smaller model.
 
 ## Performance on other Macs
 
@@ -172,7 +189,7 @@ Whisper has no native streaming, so this follows the approach of [Whisper-Stream
 
 Large v3 is the quality-oriented option; Turbo reduces decoding cost. Neither guarantees correct recognition of muffled, fast, accented, overlapping, or music-obscured speech. Source captions, if accurate and available, remain preferable to ASR. No denoising or source separation is included: aggressive filters can remove speech detail, and those features need separate evaluation.
 
-`VALIDATION.md` has measured latency. Words on screen can still change until their phrase is finalized, usually within a few seconds. Noise that hides pauses makes phrases longer, which slows finalization and raises the error rate. Model loading can take up to a minute the first time a build runs, while macOS compiles the Metal shaders; later loads take seconds. Large models need several GB of working memory beyond download size. 16 GB or more unified memory is a practical starting recommendation, not a measured minimum. Large v3 has not been benchmarked with this pipeline. Heat, Chrome playback, and other GPU work affect throughput.
+`VALIDATION.md` has measured latency. Words on screen can still change until their phrase is finalized, usually within a few seconds. Noise that hides pauses makes phrases longer, which slows finalization and raises the error rate. Model loading can take up to a minute the first time a build runs, while macOS compiles the Metal shaders; later loads take seconds. Large models need several GB of working memory beyond download size. 16 GB or more unified memory is a practical starting recommendation, not a measured minimum. Only Large v3 Turbo has been benchmarked with this pipeline. Heat, Chrome playback, and other GPU work affect throughput.
 
 Chrome mode captures the application, **not an individual tab or window's independent audio track**. macOS window selection does not reliably provide per-tab audio isolation. Chrome Beta/Canary bundle identifiers under `com.google.Chrome.*` are included. Protected/DRM content may be silent or unavailable. Chrome helper audio routing, fullscreen placement, sleep/wake, and display changes need interactive verification on your Mac; restart capture after a display/source interruption.
 
