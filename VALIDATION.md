@@ -1,5 +1,41 @@
 # Validation — 3 November 2026
 
+## Live caption test — 4 November 2026
+
+First end-to-end run: the installed v0.1.0 DMG build, Large v3 Turbo, Chrome mode, and
+about three minutes of a spoken YouTube talk played by the owner.
+
+- Live Chrome audio reached the app and captions appeared in history and the overlay.
+- Decode took 0.6–1.3 s per window with 0 skipped windows. Average CPU was 15% (peak
+  21%), memory about 1.85 GB, and no thermal warning was recorded.
+- Captions arrive in steps exactly 5 s apart during continuous speech, as designed.
+  From the window timing, a word can wait about 1 s to 7 s after it is spoken. The
+  owner reported this as too slow and too jumpy.
+- The first model load took up to about 50 s while macOS compiled the Metal shaders;
+  later loads finished within 6 s.
+- Denied recording permission showed an error, and Start worked after permission was
+  granted, reopening the app.
+
+Problems found:
+
+- **Chrome on another Space:** capture lists on-screen windows only, so Start fails
+  with "Open Chrome and start playing a video" if no Chrome window is on the current
+  desktop. A visible Chrome window at Start avoids it; capture then continues.
+- **Permission after an update:** macOS stores the signature with the permission. After
+  installing a new ad-hoc build the switch stayed on while capture was refused, and
+  turning it off and on did not update the stored signature.
+  `tccutil reset ScreenCapture org.soundveil.mac` did.
+- **Repeated words:** overlap removal missed a near match ("storage IOS" then "storage
+  IO") and showed the phrase twice.
+- **Punctuation:** capitals and punctuation mostly disappeared after the first lines.
+  The cause was not investigated.
+- **Messages:** the launch status asks for a model download when one is installed, and
+  errors run macOS's raw text into the app's advice.
+
+Not tested: accuracy against a reference transcript, a ten-minute run, overlay behavior
+over full-screen video or across Spaces, mute/unmute, sleep/wake, display changes, and
+Large v3.
+
 ## Update check
 
 - Six new XCTest cases cover version parsing and numeric ordering, reading the DMG
