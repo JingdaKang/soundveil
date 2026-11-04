@@ -1,5 +1,16 @@
 # Validation — 3 November 2026
 
+## Release 0.1.1 — 4 November 2026
+
+- Published `v0.1.1` with `release.sh`. The latest-release API returned it, and the uploaded
+  disk image's SHA-256 digest matched the local file.
+- The installed app labelled 0.1.0 reported that 0.1.1 was available, and after installing
+  the release build it reported that 0.1.1 is up to date.
+
+Not checked: the disk image has not been opened on another Mac, so the first-launch Open
+Anyway steps and the permission reset for people updating from 0.1.0 are untested. This is
+the first release with the self-signed identity instead of an ad-hoc signature.
+
 ## Model options — 4 November 2026
 
 The app now offers Base, Small, and Large v3 Turbo Compressed beside Large v3 Turbo and
