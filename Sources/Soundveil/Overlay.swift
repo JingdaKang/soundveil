@@ -10,12 +10,16 @@ import CaptionCore
   let id: String
   let text: String
   let confirmed: Bool
+  let style: WordStyle
   let line: Int
   let x: Double
  }
  @Published private(set) var items: [Item] = []
  @Published var placeholder = "Your live captions appear here"
  @Published var fontSize: Double = 28 { didSet { if fontSize != oldValue { widths = [:]; relayout() } } }
+ @Published var highlight = true { didSet { if highlight != oldValue { widths = [:]; relayout() } } }
+ @Published var hovering = false
+ @Published var expanded = false { didSet { if expanded != oldValue { publish() } } }
  var lineHeight: Double { (fontSize * 1.3).rounded() }
  private var width = 0.0
  private var widths: [String: Double] = [:]
@@ -24,13 +28,16 @@ import CaptionCore
  private var cursor = WordPlacer(space: 7, maxWidth: 800)
  private var total = 0
  private var revealed = 0
+ private var idle = false
  private var pacing: Task<Void, Never>?
  private var expiry: Task<Void, Never>?
  func configure(width: Double) { if width > 0, width != self.width { self.width = width; relayout() } }
  func apply(_ update: CaptionUpdate) {
   let shown = revealed
-  for word in update.committed { settled.append(place(word.text, index: total, confirmed: true, with: &cursor)); total += 1 }
-  if settled.count > 150 { settled.removeFirst(settled.count - 150) }
+  let texts = update.committed.map(\.text), styles = wordStyles(texts)
+  if !texts.isEmpty || !(update.tentative ?? []).isEmpty { idle = false }
+  for (text, style) in zip(texts, styles) { settled.append(place(text, style, index: total, confirmed: true, with: &cursor)); total += 1 }
+  if settled.count > 600 { settled.removeFirst(settled.count - 600) }
   if let tentative = update.tentative { placeTentative(tentative.map(\.text), stable: update.stable) }
   // A final pass rewrites words the viewer already saw, so it must not restart their reveal.
   revealed = min(max(shown, total - (update.committed.isEmpty ? 0 : pending.count)), total + pending.count)
@@ -40,38 +47,50 @@ import CaptionCore
  }
  func reset(placeholder: String) {
   pacing?.cancel(); pacing = nil; expiry?.cancel(); expiry = nil
-  settled = []; pending = []; total = 0; revealed = 0; cursor = newCursor()
+  settled = []; pending = []; total = 0; revealed = 0; idle = false; cursor = newCursor()
   self.placeholder = placeholder; publish()
  }
  private func newCursor() -> WordPlacer { WordPlacer(space: (fontSize * 0.26).rounded(), maxWidth: width > 0 ? width : 800) }
- private func measure(_ text: String) -> Double {
-  if let known = widths[text] { return known }
-  let font = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
-  let value = ceil(NSAttributedString(string: text, attributes: [.font: font]).size().width)
+ // Highlighted words are 10% larger, and a cue is a small pill, so each is measured as drawn.
+ private func measure(_ text: String, _ style: WordStyle) -> Double {
+  let key = "\(style)|\(text)"
+  if let known = widths[key] { return known }
+  let size = style == .cue ? fontSize * 0.68 : style == .plain ? fontSize : fontSize * 1.1
+  let font = NSFont.systemFont(ofSize: size, weight: style == .plain ? .semibold : .bold)
+  var value = ceil(NSAttributedString(string: text, attributes: [.font: font]).size().width)
+  if style == .cue { value += 20 }
   if widths.count > 2000 { widths = [:] }
-  widths[text] = value
+  widths[key] = value
   return value
  }
- private func place(_ text: String, index: Int, confirmed: Bool, with placer: inout WordPlacer) -> Item {
-  let spot = placer.place(width: measure(text))
-  return Item(id: "\(index)-\(text)", text: text, confirmed: confirmed, line: spot.line, x: spot.x)
+ private func place(_ raw: String, _ detected: WordStyle, index: Int, confirmed: Bool, with placer: inout WordPlacer) -> Item {
+  let style = highlight || detected == .cue ? detected : .plain
+  let text = style == .cue ? (raw == "[music]" ? "♪ music" : String(raw.dropFirst().dropLast())) : raw
+  let spot = placer.place(width: measure(text, style))
+  return Item(id: "\(index)-\(text)", text: text, confirmed: confirmed, style: style, line: spot.line, x: spot.x)
  }
  private func placeTentative(_ texts: [String], stable: Int) {
   var placer = cursor
-  pending = texts.enumerated().map { place($1, index: total + $0, confirmed: $0 < stable, with: &placer) }
+  let styles = wordStyles(texts)
+  pending = texts.indices.map { place(texts[$0], styles[$0], index: total + $0, confirmed: $0 < stable, with: &placer) }
  }
  // Resizing or a new text size rewraps everything once. Otherwise words stay where they are.
  private func relayout() {
   let first = total - settled.count
   let tentative = pending.map(\.text), stable = pending.prefix { $0.confirmed }.count
+  let texts = settled.map { $0.style == .cue ? "[\($0.text.replacingOccurrences(of: "♪ ", with: ""))]" : $0.text }
+  let styles = wordStyles(texts)
   cursor = newCursor()
-  settled = settled.enumerated().map { place($1.text, index: first + $0, confirmed: true, with: &cursor) }
-  placeTentative(tentative, stable: stable); publish()
+  settled = texts.indices.map { place(texts[$0], styles[$0], index: first + $0, confirmed: true, with: &cursor) }
+  placeTentative(tentative, stable: stable)
+  // The text has already changed size, so sliding the words into place would look broken.
+  var transaction = Transaction(); transaction.disablesAnimations = true
+  withTransaction(transaction) { publish() }
  }
  private func publish() {
   let first = total - settled.count
   let visible = (settled + pending).prefix(max(0, revealed - first))
-  items = Array(visible)
+  items = idle && !expanded ? [] : Array(visible)
  }
  private func pace() {
   guard pacing == nil, revealed < total + pending.count else { return }
@@ -84,12 +103,30 @@ import CaptionCore
    self?.pacing = nil
   }
  }
+ // Old captions leave the screen but are kept, because expanding is for reading back. What
+ // comes next starts on a fresh line.
+ private func goIdle() {
+  idle = true
+  if pending.isEmpty, cursor.x > 0 { cursor.line += 1; cursor.x = 0 }
+  publish()
+ }
  private func scheduleExpiry() {
   expiry?.cancel()
   expiry = Task { @MainActor [weak self] in
    try? await Task.sleep(for: .seconds(8))
-   if !Task.isCancelled { self?.reset(placeholder: "") }
+   if !Task.isCancelled { self?.goIdle() }
   }
+ }
+}
+private let captionAccent = Color(red: 1, green: 0.82, blue: 0.3)
+// A brief pop as a highlighted word lands. Only these words animate this way, and not at all
+// under Reduce Motion: animating every word hurts reading.
+private struct PopIn<Content: View>: View {
+ @ViewBuilder let content: Content
+ @State private var landed = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+ var body: some View {
+  content.scaleEffect(landed ? 1 : 0.72, anchor: .bottomLeading)
+   .onAppear { withAnimation(.spring(response: 0.24, dampingFraction: 0.55)) { landed = true } }
  }
 }
 // Roll-up captions: left-aligned, newest line at the bottom, older lines sliding up.
@@ -98,9 +135,28 @@ struct CaptionLines: View {
  let rows: Int
  private var font: Font { .system(size: feed.fontSize, weight: .semibold) }
  private var top: Int { (feed.items.last?.line ?? 0) - rows + 1 }
+ @ViewBuilder private func look(_ item: CaptionFeed.Item) -> some View {
+  switch item.style {
+  case .plain:
+   Text(item.text).font(font).foregroundStyle(Color.white)
+  case .sound, .slang:
+   PopIn { Text(item.text).font(.system(size: feed.fontSize * 1.1, weight: .bold)).foregroundStyle(captionAccent) }
+  case .cue:
+   PopIn {
+    Text(item.text).font(.system(size: feed.fontSize * 0.68, weight: .semibold)).foregroundStyle(captionAccent)
+     .padding(.horizontal, 10).frame(height: feed.fontSize * 1.04)
+     .background(captionAccent.opacity(0.14), in: Capsule())
+     .overlay(Capsule().strokeBorder(captionAccent.opacity(0.45)))
+   }
+  }
+ }
+ // Larger words sit up by their extra height so every word shares a baseline.
+ private func lift(_ item: CaptionFeed.Item) -> Double {
+  switch item.style { case .plain: return 0; case .cue: return feed.fontSize * 0.1; default: return -feed.fontSize * 0.12 }
+ }
  private func word(_ item: CaptionFeed.Item) -> some View {
-  Text(item.text).font(font).foregroundStyle(Color.white).opacity(item.confirmed ? 1 : 0.62).fixedSize()
-   .offset(x: item.x, y: Double(item.line - top) * feed.lineHeight).transition(.opacity)
+  look(item).opacity(item.confirmed ? 1 : 0.62).fixedSize()
+   .offset(x: item.x, y: Double(item.line - top) * feed.lineHeight + lift(item)).transition(.opacity)
  }
  var body: some View {
   ZStack(alignment: .topLeading) {
@@ -113,12 +169,68 @@ struct CaptionLines: View {
   .frame(height: Double(rows) * feed.lineHeight, alignment: .topLeading)
   .clipped()
   .animation(.easeOut(duration: 0.18), value: feed.items)
+  .accessibilityElement(children: .ignore).accessibilityLabel("Live captions")
+  .accessibilityValue(feed.items.suffix(30).map(\.text).joined(separator: " "))
  }
 }
+// Shown on hover only, so the default overlay stays nothing but text.
+struct OverlayControls: View {
+ @ObservedObject var state: AppState
+ @ObservedObject var feed: CaptionFeed
+ private func button(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {
+  Button(action: action) {
+   Image(systemName: symbol).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.white)
+    .frame(width: 28, height: 26).contentShape(Rectangle())
+  }.buttonStyle(.plain).help(label).accessibilityLabel(label)
+ }
+ var body: some View {
+  HStack(spacing: 0) {
+   button("textformat.size.smaller", "Smaller text") { state.fontSize = max(18, state.fontSize - 2) }
+   button("textformat.size.larger", "Larger text") { state.fontSize = min(48, state.fontSize + 2) }
+   button(feed.expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right", feed.expanded ? "Collapse" : "Expand") { state.toggleExpanded() }
+   button("xmark", "Hide captions") { state.hideOverlay() }
+  }
+  .padding(.horizontal, 3).background(Color.black.opacity(0.72), in: Capsule())
+  .overlay(Capsule().strokeBorder(Color.white.opacity(0.14)))
+ }
+}
+// Dragging resizes from the corner. The top-left stays put, as with any Mac window.
+final class ResizeGripView: NSView {
+ var onFinish: (() -> Void)?
+ private var startFrame = NSRect.zero
+ private var startMouse = NSPoint.zero
+ override var mouseDownCanMoveWindow: Bool { false }
+ override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+ override func resetCursorRects() { addCursorRect(bounds, cursor: .crosshair) }
+ private func screenPoint(_ event: NSEvent) -> NSPoint { window?.convertPoint(toScreen: event.locationInWindow) ?? .zero }
+ override func mouseDown(with event: NSEvent) { startFrame = window?.frame ?? .zero; startMouse = screenPoint(event) }
+ override func mouseDragged(with event: NSEvent) {
+  guard let window else { return }
+  let mouse = screenPoint(event)
+  let width = max(window.minSize.width, startFrame.width + mouse.x - startMouse.x)
+  let height = max(window.minSize.height, startFrame.height - (mouse.y - startMouse.y))
+  window.setFrame(NSRect(x: startFrame.minX, y: startFrame.maxY - height, width: width, height: height), display: true)
+ }
+ override func mouseUp(with event: NSEvent) { onFinish?() }
+ override func draw(_ dirtyRect: NSRect) {
+  NSColor.white.withAlphaComponent(0.55).setStroke()
+  for inset in [6.0, 11.0, 16.0] {
+   let path = NSBezierPath(); path.lineWidth = 1.6; path.lineCapStyle = .round
+   path.move(to: NSPoint(x: bounds.maxX - 5, y: inset - 1)); path.line(to: NSPoint(x: bounds.maxX - inset, y: 5 - 1))
+   path.stroke()
+  }
+ }
+}
+struct ResizeGrip: NSViewRepresentable {
+ let onFinish: () -> Void
+ func makeNSView(context: Context) -> ResizeGripView { let view = ResizeGripView(); view.onFinish = onFinish; return view }
+ func updateNSView(_ view: ResizeGripView, context: Context) { view.onFinish = onFinish }
+}
 struct CaptionOverlay: View {
+ @ObservedObject var state: AppState
  @ObservedObject var feed: CaptionFeed
  private let inset = 22.0
- private var backing: Double { feed.items.isEmpty && feed.placeholder.isEmpty ? 0.05 : 0.78 }
+ private var backing: Double { feed.items.isEmpty && feed.placeholder.isEmpty && !feed.hovering ? 0.05 : 0.78 }
  private func rows(_ height: Double) -> Int { max(1, Int((height - 28) / feed.lineHeight)) }
  var body: some View {
   GeometryReader { geometry in
@@ -126,12 +238,33 @@ struct CaptionOverlay: View {
     .padding(.horizontal, inset)
     .frame(maxHeight: .infinity)
     .background(Color.black.opacity(backing), in: RoundedRectangle(cornerRadius: 16))
+    .overlay(alignment: .topTrailing) {
+     if feed.hovering { OverlayControls(state: state, feed: feed).padding(7).transition(.opacity) }
+    }
+    .overlay(alignment: .bottomTrailing) {
+     if feed.hovering { ResizeGrip { state.saveOverlayFrame() }.frame(width: 26, height: 26).transition(.opacity) }
+    }
+    .animation(.easeOut(duration: 0.14), value: feed.hovering)
     .onAppear { feed.configure(width: geometry.size.width - inset * 2) }
     .onChange(of: geometry.size.width) { feed.configure(width: geometry.size.width - inset * 2) }
   }
   .padding(6)
-  .accessibilityElement(children: .ignore).accessibilityLabel("Live captions")
-  .accessibilityValue(feed.items.suffix(30).map(\.text).joined(separator: " "))
-  .help("Drag to move; resize from an edge. Hide using the main window.")
+  .help("Drag to move. Resize from an edge or the corner.")
  }
+}
+// The panel never takes focus, so hover is tracked directly: SwiftUI's own hover tracking
+// needs an active window, and clicks must work while Chrome stays frontmost.
+final class OverlayHost: NSHostingView<CaptionOverlay> {
+ var onHover: ((Bool) -> Void)?
+ private var tracker: NSTrackingArea?
+ // One area that follows the view's size. Replacing it on resize reports the mouse leaving.
+ override func updateTrackingAreas() {
+  super.updateTrackingAreas()
+  guard tracker == nil else { return }
+  let area = NSTrackingArea(rect: .zero, options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect], owner: self)
+  addTrackingArea(area); tracker = area
+ }
+ override func mouseEntered(with event: NSEvent) { onHover?(true) }
+ override func mouseExited(with event: NSEvent) { onHover?(false) }
+ override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }

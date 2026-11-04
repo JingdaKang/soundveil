@@ -10,6 +10,7 @@ import UpdateCore
  @Published var level: Float = 0
  @Published var fontSize: Double { didSet { UserDefaults.standard.set(fontSize, forKey: "captionSize"); feed.fontSize = fontSize } }
  @Published var status = "Download a model to get started."
+ @Published var highlightWords: Bool { didSet { UserDefaults.standard.set(highlightWords, forKey: "highlightWords"); feed.highlight = highlightWords } }
  @Published var needsPermission = false
  @Published var history: [Caption] = []
  @Published var busy = false
@@ -24,11 +25,14 @@ import UpdateCore
  private var overlay: NSPanel?
  private var session = UUID()
  private var checked = false
+ private var observers: [NSObjectProtocol] = []
+ private var compactHeight = 156.0
  let feed = CaptionFeed()
  init() {
   let saved = UserDefaults.standard.double(forKey: "captionSize")
   fontSize = saved > 0 ? saved : 28
-  feed.fontSize = fontSize
+  highlightWords = UserDefaults.standard.object(forKey: "highlightWords") as? Bool ?? true
+  feed.fontSize = fontSize; feed.highlight = highlightWords
  }
  func refresh() {
   installed = model.exists
@@ -89,14 +93,46 @@ import UpdateCore
    panel.isFloatingPanel = true; panel.level = .floating; panel.isOpaque = false; panel.backgroundColor = .clear
    panel.hasShadow = false; panel.isMovableByWindowBackground = true
    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-   panel.contentView = NSHostingView(rootView: CaptionOverlay(feed: feed))
+   let host = OverlayHost(rootView: CaptionOverlay(state: self, feed: feed))
+   host.onHover = { [weak self] inside in self?.feed.hovering = inside }
+   panel.contentView = host
    panel.minSize = NSSize(width: 400, height: 90)
-   if !panel.setFrameUsingName("CaptionOverlay"), let screen = NSScreen.main { panel.setFrameOrigin(NSPoint(x: screen.visibleFrame.midX - 425, y: screen.visibleFrame.minY + 65)) }
-   panel.setFrameAutosaveName("CaptionOverlay"); overlay = panel
+   if !panel.setFrameUsingName("CaptionOverlay") { place(panel) }
+   for name in [NSWindow.didMoveNotification, NSWindow.didEndLiveResizeNotification] {
+    observers.append(NotificationCenter.default.addObserver(forName: name, object: panel, queue: .main) { [weak self] _ in
+     MainActor.assumeIsolated { self?.saveOverlayFrame() }
+    })
+   }
+   overlay = panel
   }
   overlay?.orderFrontRegardless()
  }
  func hideOverlay() { overlay?.orderOut(nil) }
+ private func place(_ panel: NSPanel) {
+  guard let screen = NSScreen.main else { return }
+  panel.setFrame(NSRect(x: screen.visibleFrame.midX - 425, y: screen.visibleFrame.minY + 65, width: 850, height: 156), display: true)
+ }
+ // Expanding is a temporary reading mode, so only the compact size and position are remembered.
+ func saveOverlayFrame() { if !feed.expanded { overlay?.saveFrame(usingName: "CaptionOverlay") } }
+ // Grows upward so the newest line stays where the eye already is.
+ func toggleExpanded() {
+  guard let overlay, let screen = (overlay.screen ?? NSScreen.main)?.visibleFrame else { return }
+  var frame = overlay.frame
+  if feed.expanded {
+   frame.size.height = compactHeight
+  } else {
+   compactHeight = frame.height
+   frame.size.height = min(screen.height * 0.6, max(frame.height * 2, 12 * feed.lineHeight + 40))
+   if frame.maxY > screen.maxY { frame.origin.y = screen.maxY - frame.height }
+  }
+  feed.expanded.toggle()
+  overlay.setFrame(frame, display: true, animate: true)
+  saveOverlayFrame()
+ }
+ func resetOverlay() {
+  guard let overlay else { return }
+  feed.expanded = false; place(overlay); saveOverlayFrame()
+ }
  // Automatic checks run once per launch and stay silent on failure; manual checks always report.
  func checkForUpdates(manual: Bool) async {
   guard manual || !checked else { return }
@@ -145,6 +181,17 @@ struct UpdateBanner: View {
 }
 struct ContentView: View {
  @ObservedObject var state: AppState
+ private func historyLine(_ text: String) -> Text {
+  guard state.highlightWords else { return Text(text) }
+  let words = text.split(separator: " ").map(String.init)
+  var line = AttributedString()
+  for (word, style) in zip(words, wordStyles(words)) {
+   var piece = AttributedString(word + " ")
+   if style != .plain { piece.foregroundColor = .orange; piece.font = .body.bold() }
+   line += piece
+  }
+  return Text(line)
+ }
  var body: some View {
   VStack(alignment: .leading, spacing: 16) {
    HStack { Text("Soundveil").font(.largeTitle.bold()); Spacer(); Text("ON DEVICE · ENGLISH").font(.caption).foregroundStyle(.secondary) }
@@ -171,6 +218,7 @@ struct ContentView: View {
     ProgressView(value: min(1, Double(state.level) * 10)).frame(width: 60).help("Captured audio level")
    }.help("Lower the threshold for quiet speech. Higher sensitivity also admits more noise and music.")
    HStack { Text("Caption size"); Slider(value: $state.fontSize, in: 18...48, step: 1); Text("\(Int(state.fontSize)) pt").monospacedDigit() }
+   Toggle("Highlight sound words and slang", isOn: $state.highlightWords).help("Words like \"haha\" and \"bruh\" stand out in the caption overlay. Laughter and music cues appear either way.")
    HStack {
     Text(state.status).font(.callout).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
     if state.needsPermission {
@@ -182,7 +230,7 @@ struct ContentView: View {
    HStack { Text("Caption history").font(.headline); Spacer(); Button("Export…") { state.export() }.disabled(state.history.isEmpty) }
    ScrollViewReader { proxy in
     List(state.history) { item in
-     HStack(alignment: .top) { Text(String(format: "%02d:%02d", Int(item.start)/60, Int(item.start)%60)).monospacedDigit().foregroundStyle(.secondary); Text(item.text).textSelection(.enabled) }.id(item.id)
+     HStack(alignment: .top) { Text(String(format: "%02d:%02d", Int(item.start)/60, Int(item.start)%60)).monospacedDigit().foregroundStyle(.secondary); historyLine(item.text).textSelection(.enabled) }.id(item.id)
     }.onChange(of: state.history.count) { if let id = state.history.last?.id { proxy.scrollTo(id, anchor: .bottom) } }
    }
   }.padding(24).frame(minWidth: 650, minHeight: 620).onAppear { state.refresh() }
@@ -197,6 +245,8 @@ struct ContentView: View {
    .commands { CommandGroup(after: .appInfo) {
     Button("Check for Updates…") { Task { await state.checkForUpdates(manual: true) } }
     Toggle("Check for Updates Automatically", isOn: $autoCheck)
-   }}
+   }
+   CommandGroup(after: .windowSize) { Button("Reset Caption Overlay") { state.resetOverlay() } }
+   }
  }
 }
