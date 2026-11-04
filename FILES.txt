@@ -7,6 +7,7 @@ README.md
 Sources/CWhisperBridge/Bridge.c
 Sources/CWhisperBridge/include/Bridge.h
 Sources/CaptionCore/Expressive.swift
+Sources/CaptionCore/ModelChoice.swift
 Sources/CaptionCore/Pipeline.swift
 Sources/CaptionCore/Rolling.swift
 Sources/Soundveil/App.swift
@@ -23,6 +24,7 @@ Sources/SmokeCheck/main.swift
 Sources/StreamCheck/main.swift
 Sources/WhisperEngine/Recognizer.swift
 Tests/CaptionCoreTests/ExpressiveTests.swift
+Tests/CaptionCoreTests/ModelChoiceTests.swift
 Tests/CaptionCoreTests/PipelineTests.swift
 Tests/CaptionCoreTests/RollingTests.swift
 Tests/ShortcutCoreTests/ShortcutTests.swift
