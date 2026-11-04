@@ -1,5 +1,23 @@
 # Validation — 3 November 2026
 
+## Expressive captions and overlay controls — 4 November 2026
+
+- 53 unit tests pass, including word detection for sound words, slang, shouted-only words,
+  and fillers that stay plain.
+- A real overlay window, fed by replaying synthetic speech, highlighted "Boom.", "sus, no
+  cap.", "Let's go.", "Oops,", "Wow.", "Yikes.", and "Ha ha.", and left "the baby boom was
+  based on real data" plain.
+- In that window, Expand grew the panel from 156 to 472 pt with its bottom edge fixed, and
+  brought back text that had left the screen. Collapse returned to a dragged 660×136. The
+  corner grip, larger text, Hide, and Reset Caption Overlay all worked.
+- Allowing cues on final passes left word error at 0.7%.
+
+**Not verified:** Whisper reported no cue on synthetic applause or music, and invented
+"Thank you." over the music, so the laughter, applause, and music pills are unproven on
+real audio. The controls were tested with hover forced on, so appearing on real pointer
+hover needs a live check. Highlighting has only been seen on synthetic speech, which
+misheard "Bruh" as "Bra" and most of "Ha ha ha".
+
 ## Rolling captions — 4 November 2026
 
 Replaces the five-second windows. Measured offline with `StreamCheck` on an Apple M4 Pro
