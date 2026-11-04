@@ -5,7 +5,7 @@ import UpdateCore
 import ShortcutCore
 
 @MainActor final class AppState: ObservableObject {
- @Published var model: Model = .turbo
+ @Published var model: Model { didSet { UserDefaults.standard.set(model.rawValue, forKey: "model") } }
  @Published var system = false
  @Published var vadDB: Double = -50
  @Published var level: Float = 0
@@ -35,6 +35,7 @@ import ShortcutCore
  let feed = CaptionFeed()
  let hotkeys = Hotkeys()
  init() {
+  model = Model.saved(UserDefaults.standard.string(forKey: "model"))
   let saved = UserDefaults.standard.double(forKey: "captionSize")
   fontSize = saved > 0 ? saved : 28
   highlightWords = UserDefaults.standard.object(forKey: "highlightWords") as? Bool ?? true
