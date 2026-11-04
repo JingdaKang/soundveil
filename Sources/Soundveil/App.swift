@@ -9,7 +9,7 @@ import UpdateCore
  @Published var vadDB: Double = -50
  @Published var level: Float = 0
  @Published var fontSize: Double = 28
- @Published var status = "Download a model, then start Chrome audio."
+ @Published var status = "Download a model to get started."
  @Published var caption = "Your live English captions appear here"
  @Published var history: [Caption] = []
  @Published var busy = false
@@ -25,11 +25,14 @@ import UpdateCore
  private var session = UUID()
  private var expire: Task<Void, Never>?
  private var checked = false
- func refresh() { installed = model.exists }
+ func refresh() {
+  installed = model.exists
+  if !listening, !busy, !downloading { status = installed ? "Ready. Play a video in Chrome, then start captions." : "Download a model to get started." }
+ }
  func downloadModel() {
   downloading = true; progress = 0; status = "Downloading \(model.rawValue)…"
   download = ModelDownload(model: model, progress: { value in Task { @MainActor in self.progress = value } }, completion: { error in
-   Task { @MainActor in self.downloading = false; self.status = error ?? "Model ready. Start Chrome audio."; self.refresh(); self.download = nil }
+   Task { @MainActor in self.downloading = false; self.refresh(); if let error { self.status = error }; self.download = nil }
   }); download?.start()
  }
  func cancelDownload() { download?.cancel() }
