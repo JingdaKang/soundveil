@@ -12,10 +12,12 @@ Open `dist/Soundveil.app` in Finder. This locally built app is ad-hoc signed, no
 2. Choose **Large v3 Turbo**, then **Download model (free)**. It needs about 1.6 GB of disk space; **Large v3** needs about 3.1 GB. Downloads stream to disk, support cancellation, and install only after completion and a GGML header check. Files are not cryptographically verified by this MVP.
 3. Select **Chrome (all audible tabs)** and **Start captions**.
 4. Accept macOS's native recording-permission prompt. Depending on macOS, the setting is named **Screen Recording** or **Screen & System Audio Recording** under **System Settings → Privacy & Security**. Enable Soundveil and relaunch if requested. The app uses ScreenCaptureKit's native authorization flow; it cannot grant itself access.
-5. Drag the caption panel to your preferred position. Resize at its edges, adjust caption size in the main window, or hide/show it. A taller panel shows more lines, and its size, position, and the caption size are remembered. It floats above ordinary windows and requests full-screen/Spaces participation; exclusive full-screen applications may behave differently.
+5. Drag the caption panel to your preferred position. Pointing at the panel shows its controls: smaller and larger text, expand, and hide. Resize it from an edge or the corner grip; a larger panel shows more lines. **Expand** grows it upward for reading back, including text that has already faded. Size, position, and text size are remembered, and **Window → Reset Caption Overlay** restores the default. It floats above ordinary windows and requests full-screen/Spaces participation; exclusive full-screen applications may behave differently.
 6. Stop before changing source, model, or quiet-speech threshold. Stop keeps the words already shown and waits for any current inference call to finish before unloading the model.
 
 Captions roll up from the bottom of the panel. Words appear about a third of a second after they are spoken, dimmed while they may still change, and turn solid once two recognition passes agree. When the speaker pauses, the phrase is finalized and may be corrected slightly. The status line shows how far behind live the captions are.
+
+Sound words ("haha", "whoa", "kaboom") and internet slang ("bruh", "no cap") appear in a warm accent, slightly larger, with a brief pop. Everyday words only count when shouted, so "Boom!" stands out and "the baby boom" does not. Laughter, applause, and music can appear as a small labeled pill when Whisper reports them. Turn word highlighting off with **Highlight sound words and slang**; pills stay on, as they describe sound rather than style it.
 
 The level indicator shows captured audio. If it stays empty, check Chrome playback, permissions, or try **System audio**. System mode includes other applications' sounds, excluding Soundveil itself. No BlackHole/loopback driver is required. ScreenCaptureKit needs a display-based filter even for audio capture; the app subscribes only to audio and never saves screen images.
 
@@ -128,7 +130,8 @@ Whisper has no native streaming, so this follows the approach of [Whisper-Stream
 - **The audio context is fixed at 640** rather than Whisper's 1500, about 3 s of headroom over the longest phrase. The encoder dominates the cost and scales with it. It must not vary between passes: mixing sizes in one whisper context made the passes that followed collapse into nonsense.
 - Phrases with under 250 ms of speech are not decoded, because Whisper invents text from silence. Tokens per pass are capped and repeated phrases are cut, which stops Whisper's loops.
 - If inference stalls, phrases awaiting a final pass are bounded at 24 s and the oldest is dropped. This bounds latency and memory **by deliberately losing coverage**, and the status line reports the seconds skipped. Partial passes always take the newest audio, so they cannot build a backlog.
-- The overlay places each word once from the words before it, so appended words never move text already on screen. Words fade in and a batch is staggered over about 0.3 s so it reads as a flow. Captions clear after eight seconds without new text.
+- The overlay places each word once from the words before it, so appended words never move text already on screen. Words fade in and a batch is staggered over about 0.3 s so it reads as a flow. Captions fade after eight seconds without new text, and stay available to Expand.
+- Word highlighting uses short, fixed word lists on the device, on the principle that when everything stands out nothing does. Fillers stay plain. Non-speech cues are allowed on final passes only, so they cannot make partial text flicker, and only laughter, applause, cheering, and music are shown.
 
 ## Quality, latency, and limitations
 
@@ -178,10 +181,11 @@ For manual acceptance, test permission denial/retry, Chrome and system capture, 
 - `Info.plist`: app identity, deployment target, recording usage description.
 - `Sources/CaptionCore/Pipeline.swift`: speech gate, pause detection, words, sentence grouping.
 - `Sources/CaptionCore/Rolling.swift`: rolling transcriber, display agreement, word placement, pacing.
+- `Sources/CaptionCore/Expressive.swift`: sound word, slang, and non-speech cue detection.
 - `Sources/CWhisperBridge/include/Bridge.h`, `Sources/CWhisperBridge/Bridge.c`: narrow native inference API.
 - `Sources/WhisperEngine/Recognizer.swift`: decodes a job and rebuilds words from Whisper's tokens.
 - `Sources/Soundveil/App.swift`: SwiftUI controls, session lifecycle, history/export.
-- `Sources/Soundveil/Overlay.swift`: word feed and roll-up caption overlay.
+- `Sources/Soundveil/Overlay.swift`: word feed, roll-up captions, hover controls, and resize grip.
 - `Sources/Soundveil/Capture.swift`: ScreenCaptureKit, PCM extraction, resampling, discontinuity handling, audio level.
 - `Sources/Soundveil/Inference.swift`: model worker and caption delivery.
 - `Sources/Soundveil/Models.swift`: model choices, local storage and download progress/cancellation.
@@ -189,7 +193,7 @@ For manual acceptance, test permission denial/retry, Chrome and system capture, 
 - `Sources/UpdateCore/Release.swift`: release-tag version parsing, ordering, and response decoding.
 - `Sources/SmokeCheck/main.swift`: offline native inference smoke test.
 - `Sources/StreamCheck/main.swift`: offline latency and accuracy harness.
-- `Tests/CaptionCoreTests/`: pipeline, rolling transcriber, and overlay layout unit tests.
+- `Tests/CaptionCoreTests/`: pipeline, rolling transcriber, overlay layout, and expressive word unit tests.
 - `Tests/UpdateCoreTests/ReleaseTests.swift`: version and release-response unit tests.
 - `scripts/build.sh`, `scripts/test.sh`: reproducible build/package/sign and test commands.
 - `scripts/setup-signing.sh`: creates the local signing identity.

@@ -6,6 +6,7 @@ Package.swift
 README.md
 Sources/CWhisperBridge/Bridge.c
 Sources/CWhisperBridge/include/Bridge.h
+Sources/CaptionCore/Expressive.swift
 Sources/CaptionCore/Pipeline.swift
 Sources/CaptionCore/Rolling.swift
 Sources/Soundveil/App.swift
@@ -18,6 +19,7 @@ Sources/UpdateCore/Release.swift
 Sources/SmokeCheck/main.swift
 Sources/StreamCheck/main.swift
 Sources/WhisperEngine/Recognizer.swift
+Tests/CaptionCoreTests/ExpressiveTests.swift
 Tests/CaptionCoreTests/PipelineTests.swift
 Tests/CaptionCoreTests/RollingTests.swift
 Tests/UpdateCoreTests/ReleaseTests.swift

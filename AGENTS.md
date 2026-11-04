@@ -6,7 +6,7 @@ source together here; do not modify neighboring projects.
 ## Components
 
 - `Sources/Soundveil`: SwiftUI/AppKit UI, capture, inference coordination, models.
-- `Sources/CaptionCore`: pure speech gate, rolling transcriber, and word layout logic.
+- `Sources/CaptionCore`: pure speech gate, rolling transcriber, word layout, and expressive word logic.
 - `Sources/WhisperEngine`: Swift wrapper over the bridge for rolling decode jobs.
 - `Sources/UpdateCore`: pure release-version parsing and GitHub release decoding.
 - `Sources/CWhisperBridge`: C interface to the pinned whisper.cpp dependency.
@@ -35,4 +35,5 @@ permissions, overlay behavior, or large-model performance.
 The rolling pipeline's settings came from measurement, and README.md explains why.
 Check any change to them with StreamCheck against a reference transcript. In particular:
 keep the audio context the same for every pass, do not pass a prompt to Whisper, and do
-not cut audio on its word timestamps.
+not cut audio on its word timestamps. Keep highlighting sparing: only add a word to the
+lists in `Expressive.swift` if it is rarely ordinary dialogue.
