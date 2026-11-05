@@ -5,8 +5,13 @@
 //! tested without audio, a model, or a window.
 
 pub mod pipeline;
+pub mod rolling;
 
 pub use pipeline::{Caption, SpeechEvent, SpeechGate, Word};
+pub use rolling::{
+    CaptionUpdate, DecodeJob, PlacedWord, RollingTranscriber, UpdateSpeed, WordPlacer,
+    reveal_interval, update_interval,
+};
 
 /// Whisper's input rate. All audio in this crate is mono at this rate.
 pub const SAMPLE_RATE: usize = 16_000;
