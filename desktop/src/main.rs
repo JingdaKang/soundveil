@@ -6,6 +6,8 @@ mod audio;
 mod capture;
 mod download;
 mod engine;
+#[allow(dead_code)]
+mod feed;
 mod paths;
 mod settings;
 
