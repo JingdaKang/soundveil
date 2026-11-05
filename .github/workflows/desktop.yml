@@ -17,17 +17,71 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  windows:
     name: Test and build on Windows
     runs-on: windows-latest
     defaults:
       run:
         shell: bash
+        working-directory: desktop
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: ./core/scripts/fetch-whisper.sh
+      - run: ../core/scripts/fetch-whisper.sh
       - run: cargo test
-        working-directory: desktop
       - run: cargo build --release
+      # Opens the app and the overlay, and keeps pictures of both windows.
+      - name: Start the app and open the overlay
+        run: |
+          cargo build --features snapshot
+          for shot in main overlay; do
+            SOUNDVEIL_OVERLAY=1 SOUNDVEIL_SHOT=$shot \
+              SOUNDVEIL_SNAPSHOT=$shot.png SOUNDVEIL_SNAPSHOT_AT=3 ./target/debug/soundveil
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-pictures
+          path: desktop/*.png
+
+  linux:
+    name: Test and build on Linux
+    runs-on: ubuntu-latest
+    defaults:
+      run:
         working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install what the build and these checks need
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpulse-dev libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            pulseaudio pulseaudio-utils xvfb libgl1-mesa-dri
+      - run: ../core/scripts/fetch-whisper.sh
+      - run: cargo test
+      - run: cargo build --release
+      # A real audio server with a silent output, playing a tone into the monitor that capture reads.
+      - name: Capture audio from a real server
+        run: |
+          pulseaudio --start --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=check
+          pactl set-default-sink check
+          python3 -c "
+          import math, struct, sys
+          sys.stdout.buffer.write(b''.join(struct.pack('<h', int(9000 * math.sin(i / 8))) for i in range(16000 * 8)))
+          " > tone.raw
+          pacat --playback --format=s16le --rate=16000 --channels=1 tone.raw &
+          ./target/release/soundveil --capture-check 4
+      - name: Start the app and open the overlay
+        run: |
+          cargo build --features snapshot
+          for shot in main overlay; do
+            SOUNDVEIL_OVERLAY=1 SOUNDVEIL_SHOT=$shot \
+              SOUNDVEIL_SNAPSHOT=$shot.png SOUNDVEIL_SNAPSHOT_AT=3 xvfb-run -a ./target/debug/soundveil
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-pictures
+          path: desktop/*.png
