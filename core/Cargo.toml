@@ -1,5 +1,5 @@
 [workspace]
-members = ["soundveil-core", "soundveil-whisper"]
+members = ["soundveil-core", "soundveil-whisper", "stream-check"]
 resolver = "3"
 
 [workspace.package]

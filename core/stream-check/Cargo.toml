@@ -1,0 +1,11 @@
+[package]
+name = "stream-check"
+description = "Offline latency and accuracy replay of the rolling pipeline."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+hound = "3"
+soundveil-core = { path = "../soundveil-core" }
+soundveil-whisper = { path = "../soundveil-whisper" }
