@@ -399,5 +399,56 @@ fn main() -> Result<(), slint::PlatformError> {
     });
     ui.on_open_models(open_models);
 
+    #[cfg(feature = "snapshot")]
+    snapshot::schedule(&ui);
     ui.run()
+}
+
+/// Saves pictures of the window, so the interface can be checked without a person.
+/// `SOUNDVEIL_SNAPSHOT` names the file, and `SOUNDVEIL_SNAPSHOT_AT` is a list of seconds.
+#[cfg(feature = "snapshot")]
+mod snapshot {
+    use super::*;
+    use slint::{Timer, TimerMode};
+    use std::time::Duration;
+
+    pub fn schedule(ui: &MainWindow) {
+        let Ok(path) = std::env::var("SOUNDVEIL_SNAPSHOT") else {
+            return;
+        };
+        let times = std::env::var("SOUNDVEIL_SNAPSHOT_AT").unwrap_or("1".into());
+        let times: Vec<f64> = times.split(',').filter_map(|t| t.parse().ok()).collect();
+        let last = times.iter().copied().fold(0.0, f64::max);
+        if let Ok(page) = std::env::var("SOUNDVEIL_PAGE") {
+            ui.set_page(page.parse().unwrap_or(0));
+        }
+        if std::env::var_os("SOUNDVEIL_AUTOSTART").is_some() {
+            ui.invoke_toggle_captions();
+        }
+        for (index, seconds) in times.into_iter().enumerate() {
+            let weak = ui.as_weak();
+            let file = path.replace(".png", &format!("-{index}.png"));
+            Timer::single_shot(Duration::from_secs_f64(seconds), move || {
+                if let Some(ui) = weak.upgrade() {
+                    let picture = ui.window().take_snapshot().expect("window snapshot");
+                    let out = std::fs::File::create(&file).expect("snapshot file");
+                    let mut encoder = png::Encoder::new(out, picture.width(), picture.height());
+                    encoder.set_color(png::ColorType::Rgba);
+                    let mut writer = encoder.write_header().expect("snapshot header");
+                    writer
+                        .write_image_data(picture.as_bytes())
+                        .expect("snapshot data");
+                    eprintln!("snapshot {file}");
+                }
+            });
+        }
+        let timer = Box::leak(Box::new(Timer::default()));
+        timer.start(
+            TimerMode::SingleShot,
+            Duration::from_secs_f64(last + 0.5),
+            || {
+                let _ = slint::quit_event_loop();
+            },
+        );
+    }
 }
