@@ -1,12 +1,17 @@
 //! Where audio comes from.
 //!
-//! A recording can be replayed at live speed, which exercises everything after capture on any
-//! system.
+//! Windows captures what the speakers play with WASAPI loopback. A recording can also be replayed
+//! at live speed, which exercises everything after capture on any system.
+
+#[cfg(windows)]
+mod wasapi;
 
 use soundveil_core::{SAMPLE_RATE, SpeechEvent, SpeechGate};
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(windows)]
+use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
@@ -60,7 +65,7 @@ impl Listener {
     }
 
     /// Audio went missing, so whatever was being said can't be joined to what comes next.
-    #[allow(dead_code)]
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub fn gap(&mut self, lost: Duration) {
         self.heard += (lost.as_secs_f64() * SAMPLE_RATE as f64) as u64;
         self.gate = SpeechGate::new(self.heard as f64 / SAMPLE_RATE as f64);
@@ -68,7 +73,7 @@ impl Listener {
         (self.sink.events)(vec![SpeechEvent::Gap]);
     }
 
-    #[allow(dead_code)]
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub fn status(&self, text: impl Into<String>) {
         (self.sink.status)(text.into());
     }
@@ -131,6 +136,37 @@ pub fn replay(path: &Path, threshold: f32, sink: Sink) -> Result<Capture, String
     })
 }
 
+/// Runs a capture backend on its own thread. Its first step reports whether audio can be opened,
+/// so Start can show the reason straight away instead of listening to nothing.
+#[cfg(windows)]
+fn spawn(
+    threshold: f32,
+    sink: Sink,
+    run: impl FnOnce(&mut Listener, &AtomicBool, mpsc::Sender<Result<(), String>>) + Send + 'static,
+) -> Result<Capture, String> {
+    let stop = Arc::new(AtomicBool::new(false));
+    let stopping = stop.clone();
+    let (opened, result) = mpsc::channel();
+    let worker = thread::spawn(move || {
+        let mut listener = Listener::new(threshold, sink);
+        run(&mut listener, &stopping, opened);
+    });
+    result
+        .recv()
+        .map_err(|_| "Audio capture stopped while starting.".to_string())??;
+    Ok(Capture {
+        stop,
+        worker: Some(worker),
+    })
+}
+
+/// Captures what this computer is playing.
+#[cfg(windows)]
+pub fn live(threshold: f32, sink: Sink) -> Result<Capture, String> {
+    spawn(threshold, sink, wasapi::run)
+}
+
+#[cfg(not(windows))]
 pub fn live(_threshold: f32, _sink: Sink) -> Result<Capture, String> {
     Err("This build has no live capture here. Run with --replay and a recording.".into())
 }
