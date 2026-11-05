@@ -66,7 +66,7 @@ enum LabelStyle {
 }
 
 /// What a shortcut means on one operating system.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug)]
 pub struct Keyboard {
     pub control: u32,
     pub alt: u32,
