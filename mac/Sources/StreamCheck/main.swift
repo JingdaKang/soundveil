@@ -6,7 +6,7 @@ import WhisperEngine
 // Replays a recording through the rolling pipeline on a simulated live clock: audio "arrives"
 // while each pass really runs. Measures caption delay without recording permission. It does
 // not exercise ScreenCaptureKit, the overlay, or real playback.
-let usage = "Usage: StreamCheck model.bin audio.wav [reference.txt] [partial=1] [final=5] [step=0.2] [phrase=2.5] [maxphrase=9] [first=0.8] [ctx=640] [tail=1] [show=1]\n"
+let usage = "Usage: StreamCheck model.bin audio.wav [reference.txt] [partial=1] [final=5] [step=0.2] [phrase=2.5] [maxphrase=9] [first=0.8] [ctx=640] [tail=1] [show=1] [pass=0.3]\n"
 var paths: [String] = [], options: [String: Double] = [:]
 for argument in CommandLine.arguments.dropFirst() {
  let parts = argument.split(separator: "=")
@@ -98,7 +98,8 @@ while true {
  }
  let began = Date()
  let words = recognizer.decode(job) ?? []
- let took = Date().timeIntervalSince(began) * (options["slow"] ?? 1) // slow=3 simulates a Mac three times slower.
+ // slow=3 simulates a Mac three times slower. pass= fixes the time of every pass, so runs repeat exactly.
+ let took = options["pass"] ?? Date().timeIntervalSince(began) * (options["slow"] ?? 1)
  if options["auto"] != nil, !job.isFinal { transcriber.step = updateInterval(.auto, passTime: took, constrained: options["auto"] == 2) }
  passes.append(took); lengths.append(Double(job.samples.count)/16000); if job.isFinal { finals.append(took) }
  now += took; feed(until: now)
