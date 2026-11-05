@@ -1,8 +1,11 @@
 //! Where audio comes from.
 //!
-//! Windows captures what the speakers play with WASAPI loopback. A recording can also be replayed
+//! Windows captures what the speakers play with WASAPI loopback, and Linux reads the same from
+//! the default output's monitor, through PulseAudio or PipeWire. A recording can also be replayed
 //! at live speed, which exercises everything after capture on any system.
 
+#[cfg(target_os = "linux")]
+mod pulse;
 #[cfg(windows)]
 mod wasapi;
 
@@ -10,7 +13,7 @@ use soundveil_core::{SAMPLE_RATE, SpeechEvent, SpeechGate};
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -65,7 +68,7 @@ impl Listener {
     }
 
     /// Audio went missing, so whatever was being said can't be joined to what comes next.
-    #[cfg_attr(not(windows), allow(dead_code))]
+    #[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
     pub fn gap(&mut self, lost: Duration) {
         self.heard += (lost.as_secs_f64() * SAMPLE_RATE as f64) as u64;
         self.gate = SpeechGate::new(self.heard as f64 / SAMPLE_RATE as f64);
@@ -73,7 +76,7 @@ impl Listener {
         (self.sink.events)(vec![SpeechEvent::Gap]);
     }
 
-    #[cfg_attr(not(windows), allow(dead_code))]
+    #[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
     pub fn status(&self, text: impl Into<String>) {
         (self.sink.status)(text.into());
     }
@@ -138,7 +141,7 @@ pub fn replay(path: &Path, threshold: f32, sink: Sink) -> Result<Capture, String
 
 /// Runs a capture backend on its own thread. Its first step reports whether audio can be opened,
 /// so Start can show the reason straight away instead of listening to nothing.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 fn spawn(
     threshold: f32,
     sink: Sink,
@@ -166,7 +169,12 @@ pub fn live(threshold: f32, sink: Sink) -> Result<Capture, String> {
     spawn(threshold, sink, wasapi::run)
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+pub fn live(threshold: f32, sink: Sink) -> Result<Capture, String> {
+    spawn(threshold, sink, pulse::run)
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn live(_threshold: f32, _sink: Sink) -> Result<Capture, String> {
     Err("This build has no live capture here. Run with --replay and a recording.".into())
 }
