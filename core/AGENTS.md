@@ -1,6 +1,6 @@
 # Soundveil core
 
-Shared caption logic in Rust, for the Windows app and later platforms. Read `../AGENTS.md`
+Shared caption logic in Rust, for the Windows and Linux app and later platforms. Read `../AGENTS.md`
 for how this fits with the other parts.
 
 ## Crates

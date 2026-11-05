@@ -7,7 +7,7 @@ folder with its own toolchain and its own `AGENTS.md`. There is no root-level bu
 
 - `mac/`: the macOS app in Swift. This is the only released part.
 - `core/`: shared caption logic in Rust.
-- `desktop/`: the Windows app, in Rust with a Slint interface. Not released yet.
+- `desktop/`: the Windows and Linux app, in Rust with a Slint interface. Not released yet.
 - `docs/`: product-level documents.
 
 ## Contracts between parts
