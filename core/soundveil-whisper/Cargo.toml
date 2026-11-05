@@ -1,0 +1,18 @@
+[package]
+name = "soundveil-whisper"
+description = "Runs Soundveil's decode jobs on the pinned whisper.cpp."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+links = "whisper"
+
+[features]
+# Windows and Linux GPU support. The Vulkan SDK must be installed to build it.
+vulkan = []
+
+[dependencies]
+soundveil-core = { path = "../soundveil-core" }
+
+[build-dependencies]
+cc = "1"
+cmake = "0.1"

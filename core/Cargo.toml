@@ -1,5 +1,5 @@
 [workspace]
-members = ["soundveil-core"]
+members = ["soundveil-core", "soundveil-whisper"]
 resolver = "3"
 
 [workspace.package]
