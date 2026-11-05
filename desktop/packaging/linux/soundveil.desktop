@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Soundveil
+GenericName=Live captions
+Comment=Offline live captions for the audio playing on your computer
+Exec=soundveil
+Icon=soundveil
+Terminal=false
+Categories=AudioVideo;Audio;Accessibility;Utility;
+Keywords=captions;subtitles;transcribe;speech;
+StartupWMClass=soundveil
