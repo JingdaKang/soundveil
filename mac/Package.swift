@@ -13,6 +13,7 @@ let package = Package(name: "Soundveil", platforms: [.macOS(.v14)], products: [.
  .executableTarget(name: "Soundveil", dependencies: ["CaptionCore", "WhisperEngine", "UpdateCore", "ShortcutCore"]),
  .executableTarget(name: "SmokeCheck", dependencies: ["CWhisperBridge"]),
  .executableTarget(name: "StreamCheck", dependencies: ["CaptionCore", "WhisperEngine"]),
+ .executableTarget(name: "CoreTrace", dependencies: ["CaptionCore"]),
  .testTarget(name: "CaptionCoreTests", dependencies: ["CaptionCore"]),
  .testTarget(name: "UpdateCoreTests", dependencies: ["UpdateCore"]),
  .testTarget(name: "ShortcutCoreTests", dependencies: ["ShortcutCore"])
