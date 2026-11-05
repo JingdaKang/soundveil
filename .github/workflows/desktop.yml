@@ -1,0 +1,33 @@
+name: Desktop
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "core/**"
+      - "desktop/**"
+      - ".github/workflows/desktop.yml"
+  pull_request:
+    paths:
+      - "core/**"
+      - "desktop/**"
+      - ".github/workflows/desktop.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test and build on Windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: ./core/scripts/fetch-whisper.sh
+      - run: cargo test
+        working-directory: desktop
+      - run: cargo build --release
+        working-directory: desktop
