@@ -25,7 +25,6 @@ slint::include_modules!();
 
 const KEEP_WORDS: usize = 40;
 const KEEP_LINES: usize = 2000;
-const NO_CAPTURE: &str = "Audio capture isn't built yet. Run with --replay and a recording.";
 
 #[cfg(target_os = "macos")]
 const KEYBOARD: Keyboard = Keyboard::MAC;
@@ -140,10 +139,7 @@ fn receive(ui: &MainWindow, shared: &Shared, update: CaptionUpdate) {
 }
 
 fn start(ui: &MainWindow, shared: &Arc<Shared>) {
-    let Some(recording) = shared.replay.clone() else {
-        ui.set_status(NO_CAPTURE.into());
-        return;
-    };
+    let recording = shared.replay.clone();
     ui.set_busy(true);
     ui.set_status("Loading the model. The first run can take up to a minute…".into());
     clear_captions(ui, shared, "Waiting for speech…");
@@ -155,9 +151,19 @@ fn start(ui: &MainWindow, shared: &Arc<Shared>) {
     let threshold = 10_f32.powf(ui.get_threshold() / 20.0);
     let (weak, shared) = (ui.as_weak(), shared.clone());
     thread::spawn(move || {
+        let status = || -> Box<dyn Fn(String) + Send> {
+            let (weak, shared) = (weak.clone(), shared.clone());
+            Box::new(move |text| {
+                let shared = shared.clone();
+                let _ = weak.upgrade_in_event_loop(move |ui| {
+                    if current(&shared) {
+                        ui.set_status(text.into());
+                    }
+                });
+            })
+        };
         let reports = {
-            let (on_update, on_status) = (weak.clone(), weak.clone());
-            let (update_shared, status_shared) = (shared.clone(), shared.clone());
+            let (on_update, update_shared) = (weak.clone(), shared.clone());
             Reports {
                 update: Box::new(move |update| {
                     let shared = update_shared.clone();
@@ -167,14 +173,7 @@ fn start(ui: &MainWindow, shared: &Arc<Shared>) {
                         }
                     });
                 }),
-                status: Box::new(move |text| {
-                    let shared = status_shared.clone();
-                    let _ = on_status.upgrade_in_event_loop(move |ui| {
-                        if current(&shared) {
-                            ui.set_status(text.into());
-                        }
-                    });
-                }),
+                status: status(),
             }
         };
         let engine = match Engine::start(model, speed, reports) {
@@ -194,6 +193,7 @@ fn start(ui: &MainWindow, shared: &Arc<Shared>) {
                         }
                     });
                 }),
+                status: status(),
                 finished: Box::new(move || {
                     let shared = end_shared.clone();
                     let _ = ended.upgrade_in_event_loop(move |ui| {
@@ -204,7 +204,11 @@ fn start(ui: &MainWindow, shared: &Arc<Shared>) {
                 }),
             }
         };
-        match capture::replay(&recording, threshold, sink) {
+        let opened = match recording {
+            Some(path) => capture::replay(&path, threshold, sink),
+            None => capture::live(threshold, sink),
+        };
+        match opened {
             Ok(capture) => {
                 *shared
                     .session

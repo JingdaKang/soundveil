@@ -1,8 +1,7 @@
 //! Where audio comes from.
 //!
-//! Windows will capture a browser's audio with WASAPI process loopback. Until that exists, and
-//! on other systems, a recording can be replayed at live speed to exercise everything after
-//! capture.
+//! A recording can be replayed at live speed, which exercises everything after capture on any
+//! system.
 
 use soundveil_core::{SAMPLE_RATE, SpeechEvent, SpeechGate};
 use std::path::Path;
@@ -17,7 +16,66 @@ const CHUNK: usize = SAMPLE_RATE / 10;
 pub struct Sink {
     pub events: Box<dyn Fn(Vec<SpeechEvent>) + Send>,
     pub level: Box<dyn Fn(f32) + Send>,
+    pub status: Box<dyn Fn(String) + Send>,
     pub finished: Box<dyn FnOnce() + Send>,
+}
+
+/// The part every source shares: 16 kHz audio goes in, speech events and a level come out.
+pub struct Listener {
+    gate: SpeechGate,
+    threshold: f32,
+    sink: Sink,
+    heard: u64,
+    level_samples: usize,
+    level_power: f32,
+}
+
+impl Listener {
+    fn new(threshold: f32, sink: Sink) -> Self {
+        let mut gate = SpeechGate::default();
+        gate.threshold = threshold;
+        Self {
+            gate,
+            threshold,
+            sink,
+            heard: 0,
+            level_samples: 0,
+            level_power: 0.0,
+        }
+    }
+
+    pub fn hear(&mut self, samples: &[f32]) {
+        self.heard += samples.len() as u64;
+        let events = self.gate.append(samples);
+        if !events.is_empty() {
+            (self.sink.events)(events);
+        }
+        self.level_samples += samples.len();
+        self.level_power += samples.iter().map(|s| s * s).sum::<f32>();
+        if self.level_samples >= CHUNK {
+            (self.sink.level)((self.level_power / self.level_samples as f32).sqrt());
+            self.level_samples = 0;
+            self.level_power = 0.0;
+        }
+    }
+
+    /// Audio went missing, so whatever was being said can't be joined to what comes next.
+    #[allow(dead_code)]
+    pub fn gap(&mut self, lost: Duration) {
+        self.heard += (lost.as_secs_f64() * SAMPLE_RATE as f64) as u64;
+        self.gate = SpeechGate::new(self.heard as f64 / SAMPLE_RATE as f64);
+        self.gate.threshold = self.threshold;
+        (self.sink.events)(vec![SpeechEvent::Gap]);
+    }
+
+    #[allow(dead_code)]
+    pub fn status(&self, text: impl Into<String>) {
+        (self.sink.status)(text.into());
+    }
+
+    fn finish(self) {
+        (self.sink.finished)();
+    }
 }
 
 pub struct Capture {
@@ -55,26 +113,24 @@ pub fn replay(path: &Path, threshold: f32, sink: Sink) -> Result<Capture, String
     let stop = Arc::new(AtomicBool::new(false));
     let stopping = stop.clone();
     let worker = thread::spawn(move || {
-        let mut gate = SpeechGate::default();
-        gate.threshold = threshold;
+        let mut listener = Listener::new(threshold, sink);
         let began = Instant::now();
         for (index, chunk) in samples.chunks(CHUNK).enumerate() {
             if stopping.load(Ordering::Relaxed) {
                 return;
             }
-            let events = gate.append(chunk);
-            if !events.is_empty() {
-                (sink.events)(events);
-            }
-            let power = chunk.iter().map(|s| s * s).sum::<f32>() / chunk.len() as f32;
-            (sink.level)(power.sqrt());
+            listener.hear(chunk);
             let due = began + Duration::from_millis((index as u64 + 1) * 100);
             thread::sleep(due.saturating_duration_since(Instant::now()));
         }
-        (sink.finished)();
+        listener.finish();
     });
     Ok(Capture {
         stop,
         worker: Some(worker),
     })
+}
+
+pub fn live(_threshold: f32, _sink: Sink) -> Result<Capture, String> {
+    Err("This build has no live capture here. Run with --replay and a recording.".into())
 }
