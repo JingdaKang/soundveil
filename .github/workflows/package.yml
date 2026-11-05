@@ -63,8 +63,10 @@ jobs:
       - name: Install what the build needs
         run: |
           sudo apt-get update
-          sudo apt-get install -y libpulse-dev libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev
-      # This Ubuntu's own Vulkan packages are too old for whisper.cpp and have no shader compiler.
+          sudo apt-get install -y libpulse-dev libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libvulkan-dev
+      # This Ubuntu's Vulkan headers are too old for whisper.cpp and it has no shader compiler, so
+      # those come from the SDK. The SDK has no library to link, so that comes from Ubuntu.
       - uses: humbletim/install-vulkan-sdk@v1.2
         with:
           version: latest
