@@ -8,6 +8,7 @@ pub mod expressive;
 pub mod model;
 pub mod pipeline;
 pub mod rolling;
+pub mod shortcuts;
 
 pub use expressive::{WordStyle, cue_label, word_styles};
 pub use model::Model;
@@ -16,6 +17,7 @@ pub use rolling::{
     CaptionUpdate, DecodeJob, PlacedWord, RollingTranscriber, UpdateSpeed, WordPlacer,
     reveal_interval, update_interval,
 };
+pub use shortcuts::{Keyboard, Shortcut, ShortcutAction, ShortcutMap};
 
 /// Whisper's input rate. All audio in this crate is mono at this rate.
 pub const SAMPLE_RATE: usize = 16_000;
