@@ -13,6 +13,11 @@ fn enabled(flag: bool) -> &'static str {
 fn main() {
     println!("cargo:rerun-if-changed=bridge");
     println!("cargo:rerun-if-env-changed=WHISPER_CPP_DIR");
+    println!("cargo:rerun-if-env-changed=SOUNDVEIL_CHECK_ONLY");
+    // Lets `cargo check` run for another system, where this C++ can't be built.
+    if env::var_os("SOUNDVEIL_CHECK_ONLY").is_some() {
+        return;
+    }
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let source = env::var_os("WHISPER_CPP_DIR")
         .map(PathBuf::from)
@@ -45,6 +50,14 @@ fn main() {
         .define("GGML_VULKAN", enabled(vulkan));
     if mac {
         build.define("CMAKE_OSX_DEPLOYMENT_TARGET", "14.0");
+    }
+    // A release runs on other people's computers, so it can't assume the build machine's
+    // processor. AVX2 is the oldest level that keeps recognition fast enough for live captions.
+    if !mac && env::var("CARGO_CFG_TARGET_ARCH").unwrap() == "x86_64" {
+        build.define("GGML_NATIVE", "OFF");
+        for level in ["GGML_AVX", "GGML_AVX2", "GGML_FMA", "GGML_F16C", "GGML_BMI2"] {
+            build.define(level, "ON");
+        }
     }
     let out = build.build();
 
