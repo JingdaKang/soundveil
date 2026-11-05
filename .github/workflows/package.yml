@@ -17,6 +17,9 @@ jobs:
   windows:
     name: Windows installer
     runs-on: windows-latest
+    env:
+      # whisper.cpp's shader build nests deep enough to pass Windows's path limit from the usual folder.
+      CARGO_TARGET_DIR: C:/t
     defaults:
       run:
         shell: bash
@@ -41,9 +44,10 @@ jobs:
       - name: Build the installer
         run: |
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
-          cp "$VULKAN_SDK/Bin/vulkan-1.dll" target/release/ || cp /c/Windows/System32/vulkan-1.dll target/release/
+          built=$CARGO_TARGET_DIR/release
+          cp "$VULKAN_SDK/Bin/vulkan-1.dll" "$built/" || cp /c/Windows/System32/vulkan-1.dll "$built/"
           "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
-            "//DAppVersion=$version" "//DBinaryDir=$(cygpath -w "$PWD/target/release")" \
+            "//DAppVersion=$version" "//DBinaryDir=$(cygpath -w "$built")" \
             packaging/windows/soundveil.iss
       - uses: actions/upload-artifact@v4
         with:
