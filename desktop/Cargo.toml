@@ -1,6 +1,6 @@
 [package]
 name = "soundveil"
-description = "Offline live captions for Windows, with its interface in Slint."
+description = "Offline live captions for Windows and Linux, with its interface in Slint."
 version = "0.1.1"
 edition = "2024"
 license = "MIT"
@@ -41,3 +41,4 @@ libpulse-simple-binding = "2"
 
 [build-dependencies]
 slint-build = "1.18"
+winresource = "0.1"
