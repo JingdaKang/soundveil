@@ -20,6 +20,7 @@ Sources/Soundveil/Updates.swift
 Sources/UpdateCore/Release.swift
 Sources/SmokeCheck/main.swift
 Sources/StreamCheck/main.swift
+Sources/CoreTrace/main.swift
 Sources/WhisperEngine/Recognizer.swift
 Tests/CaptionCoreTests/ExpressiveTests.swift
 Tests/CaptionCoreTests/ModelChoiceTests.swift
