@@ -80,6 +80,8 @@ fn main() {
             }
         }
         "linux" | "android" => println!("cargo:rustc-link-lib=stdc++"),
+        // ggml reads the processor's name from the registry.
+        "windows" => println!("cargo:rustc-link-lib=advapi32"),
         _ => {}
     }
     if vulkan {
