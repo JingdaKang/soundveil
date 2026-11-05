@@ -10,6 +10,9 @@ mod settings;
 #[allow(dead_code)]
 mod download;
 
+#[allow(dead_code)]
+mod engine;
+
 use slint::ComponentHandle;
 
 slint::include_modules!();
