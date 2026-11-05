@@ -317,18 +317,10 @@ component CaptionsPage inherits VerticalLayout {
         }
     }
 
-    // The list measures a new row after this property changes, so scrolling waits a moment.
-    follow := Timer {
-        interval: 40ms;
-        running: false;
-        triggered => {
-            self.running = false;
-            list.content-y = min(0px, list.visible-height - list.content-height);
-        }
-    }
-
-    changed history-count => {
-        follow.running = true;
+    // The list measures rows when it draws, so it follows its own height, not the row count.
+    property <length> list-height: list.content-height;
+    changed list-height => {
+        list.content-y = min(0px, list.visible-height - self.list-height);
     }
 }
 
