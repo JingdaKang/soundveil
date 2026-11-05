@@ -5,3 +5,4 @@ vendor/
 *.mlmodelc/
 .DS_Store
 docs/*.log
+target/

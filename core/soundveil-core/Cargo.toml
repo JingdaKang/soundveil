@@ -1,0 +1,7 @@
+[package]
+name = "soundveil-core"
+description = "Caption logic shared by every Soundveil app. Pure Rust, with no audio, model, or UI dependency."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
