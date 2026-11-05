@@ -56,8 +56,12 @@ jobs:
       - name: Install what the build needs
         run: |
           sudo apt-get update
-          sudo apt-get install -y libpulse-dev libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev \
-            libvulkan-dev glslc
+          sudo apt-get install -y libpulse-dev libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev
+      # This Ubuntu's own Vulkan packages are too old for whisper.cpp and have no shader compiler.
+      - uses: humbletim/install-vulkan-sdk@v1.2
+        with:
+          version: latest
+          cache: true
       - run: ../core/scripts/fetch-whisper.sh
       - run: cargo build --release --features vulkan
       - run: ./packaging/linux/package.sh
