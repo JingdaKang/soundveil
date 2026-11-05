@@ -4,19 +4,23 @@
 #[cfg(any(windows, test))]
 mod audio;
 mod capture;
+mod captions;
 mod download;
 mod engine;
-#[allow(dead_code)]
 mod feed;
+mod overlay;
 mod paths;
 mod settings;
 
 use capture::{Capture, Sink};
+use captions::Captions;
 use engine::{Engine, Reports};
+use overlay::Overlay;
 use settings::Settings;
 use slint::{ComponentHandle, Model as _, ModelRc, SharedString, VecModel, Weak};
 use soundveil_core::{CaptionUpdate, Keyboard, Model, ShortcutAction, UpdateSpeed};
 use std::path::PathBuf;
+use std::cell::OnceCell;
 use std::process::Command;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -25,8 +29,10 @@ use std::thread;
 
 slint::include_modules!();
 
-const KEEP_WORDS: usize = 40;
 const KEEP_LINES: usize = 2000;
+const SIZE_STEP: f32 = 2.0;
+const SMALLEST: f32 = 18.0;
+const LARGEST: f32 = 48.0;
 
 #[cfg(target_os = "macos")]
 const KEYBOARD: Keyboard = Keyboard::MAC;
@@ -43,9 +49,22 @@ struct Session {
 struct Shared {
     session: Mutex<Option<Session>>,
     number: AtomicU64,
-    live: Mutex<Vec<String>>,
     cancel: Arc<AtomicBool>,
     replay: Option<PathBuf>,
+}
+
+/// What belongs to the interface thread alone.
+struct View {
+    captions: Rc<Captions>,
+    overlay: Rc<Overlay>,
+}
+
+thread_local! {
+    static VIEW: OnceCell<View> = const { OnceCell::new() };
+}
+
+fn with_view<T>(use_view: impl FnOnce(&View) -> T) -> T {
+    VIEW.with(|view| use_view(view.get().expect("the view is set up before anything runs")))
 }
 
 fn strings(values: impl Iterator<Item = &'static str>) -> ModelRc<SharedString> {
@@ -89,21 +108,21 @@ fn save(ui: &MainWindow) {
         quiet_threshold: ui.get_threshold(),
         highlight_words: ui.get_highlight(),
         click_through: ui.get_click_through(),
+        overlay: with_view(|view| view.overlay.frame()),
     };
     if let Err(error) = settings.save() {
         ui.set_status(error.into());
     }
 }
 
-fn clear_captions(ui: &MainWindow, shared: &Shared, placeholder: &str) {
-    shared
-        .live
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .clear();
-    ui.set_confirmed("".into());
-    ui.set_tentative("".into());
-    ui.set_placeholder(placeholder.into());
+fn set_placeholder(ui: &MainWindow, text: &str) {
+    ui.set_placeholder(text.into());
+    with_view(|view| view.overlay.window.set_placeholder(text.into()));
+}
+
+fn clear_captions(ui: &MainWindow, placeholder: &str) {
+    with_view(|view| view.captions.reset());
+    set_placeholder(ui, placeholder);
 }
 
 fn with_history(ui: &MainWindow, change: impl FnOnce(&VecModel<HistoryLine>)) {
@@ -114,18 +133,9 @@ fn with_history(ui: &MainWindow, change: impl FnOnce(&VecModel<HistoryLine>)) {
     }
 }
 
-fn receive(ui: &MainWindow, shared: &Shared, update: CaptionUpdate) {
-    let mut live = shared.live.lock().unwrap_or_else(PoisonError::into_inner);
-    live.extend(update.committed.into_iter().map(|word| word.text));
-    let excess = live.len().saturating_sub(KEEP_WORDS);
-    live.drain(..excess);
-    ui.set_confirmed(live.join(" ").into());
-    if let Some(tentative) = update.tentative {
-        let words: Vec<String> = tentative.into_iter().map(|word| word.text).collect();
-        ui.set_tentative(words.join(" ").into());
-    }
-    if !live.is_empty() || !ui.get_tentative().is_empty() {
-        ui.set_placeholder("".into());
+fn receive(ui: &MainWindow, update: CaptionUpdate) {
+    if with_view(|view| view.captions.apply(&update)) {
+        set_placeholder(ui, "");
     }
     with_history(ui, |lines| {
         for caption in update.sentences {
@@ -144,7 +154,7 @@ fn start(ui: &MainWindow, shared: &Arc<Shared>) {
     let recording = shared.replay.clone();
     ui.set_busy(true);
     ui.set_status("Loading the model. The first run can take up to a minute…".into());
-    clear_captions(ui, shared, "Waiting for speech…");
+    clear_captions(ui, "Waiting for speech…");
     with_history(ui, |lines| lines.set_vec(Vec::new()));
     let number = shared.number.fetch_add(1, Ordering::Relaxed) + 1;
     let current = move |shared: &Shared| shared.number.load(Ordering::Relaxed) == number;
@@ -171,7 +181,7 @@ fn start(ui: &MainWindow, shared: &Arc<Shared>) {
                     let shared = update_shared.clone();
                     let _ = on_update.upgrade_in_event_loop(move |ui| {
                         if current(&shared) {
-                            receive(&ui, &shared, update);
+                            receive(&ui, update);
                         }
                     });
                 }),
@@ -220,6 +230,7 @@ fn start(ui: &MainWindow, shared: &Arc<Shared>) {
                     ui.set_busy(false);
                     ui.set_listening(true);
                     ui.set_status("Listening".into());
+                    show_overlay(&ui);
                 });
             }
             Err(error) => {
@@ -233,7 +244,7 @@ fn start(ui: &MainWindow, shared: &Arc<Shared>) {
 fn fail(weak: &Weak<MainWindow>, error: String) {
     let _ = weak.upgrade_in_event_loop(move |ui| {
         ui.set_busy(false);
-        ui.set_placeholder("".into());
+        set_placeholder(&ui, "");
         ui.set_status(error.into());
     });
 }
@@ -251,16 +262,61 @@ fn stop(ui: &MainWindow, shared: &Arc<Shared>) {
     ui.set_listening(false);
     ui.set_level(0.0);
     ui.set_status("Stopping…".into());
-    let (weak, shared) = (ui.as_weak(), shared.clone());
+    let weak = ui.as_weak();
     thread::spawn(move || {
         session.capture.stop();
         let update = session.engine.stop();
         let _ = weak.upgrade_in_event_loop(move |ui| {
-            receive(&ui, &shared, update);
+            receive(&ui, update);
             ui.set_busy(false);
             ui.set_status("Stopped".into());
         });
     });
+}
+
+fn show_overlay(ui: &MainWindow) {
+    let weak = ui.as_weak();
+    let on_change: Rc<dyn Fn()> = Rc::new(move || {
+        if let Some(ui) = weak.upgrade() {
+            save(&ui);
+        }
+    });
+    with_view(|view| view.overlay.show(on_change));
+    ui.set_overlay_shown(true);
+}
+
+fn hide_overlay(ui: &MainWindow) {
+    with_view(|view| view.overlay.hide());
+    ui.set_overlay_shown(false);
+}
+
+fn toggle_overlay(ui: &MainWindow) {
+    if with_view(|view| view.overlay.is_visible()) {
+        hide_overlay(ui);
+    } else {
+        show_overlay(ui);
+    }
+}
+
+fn change_size(ui: &MainWindow, by: f32) {
+    let size = (ui.get_caption_size() + by).clamp(SMALLEST, LARGEST);
+    ui.set_caption_size(size);
+    with_view(|view| view.overlay.window.set_size_points(size));
+    save(ui);
+}
+
+fn toggle_expanded(ui: &MainWindow) {
+    with_view(|view| {
+        let line = (ui.get_caption_size() * 1.3).round();
+        view.overlay.toggle_expanded(line);
+        view.captions.set_expanded(view.overlay.is_expanded());
+    });
+}
+
+fn set_click_through(ui: &MainWindow, on: bool) {
+    ui.set_click_through(on);
+    with_view(|view| view.overlay.set_click_through(on));
+    save(ui);
 }
 
 fn download(ui: &MainWindow, shared: &Arc<Shared>) {
@@ -316,7 +372,16 @@ fn main() -> Result<(), slint::PlatformError> {
         ..Shared::default()
     });
     let settings = Settings::load();
+    overlay::prepare()?;
     let ui = MainWindow::new()?;
+    let view = View {
+        captions: Captions::new(!settings.highlight_words),
+        overlay: Overlay::new(settings.overlay, settings.click_through)?,
+    };
+    ui.set_words(view.captions.model());
+    view.overlay.window.set_words(view.captions.model());
+    view.overlay.window.set_size_points(settings.caption_size);
+    VIEW.with(|cell| cell.set(view).map_err(|_| ()).expect("one view"));
     let saved_model = Model::saved(Some(&settings.model));
     let saved_speed = UpdateSpeed::saved(Some(&settings.update_speed));
     ui.set_version(env!("CARGO_PKG_VERSION").into());
@@ -339,7 +404,7 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.set_threshold(settings.quiet_threshold);
     ui.set_highlight(settings.highlight_words);
     ui.set_click_through(settings.click_through);
-    ui.set_placeholder("Your live captions appear here".into());
+    set_placeholder(&ui, "Your live captions appear here");
     ui.set_history(ModelRc::from(Rc::new(VecModel::<HistoryLine>::default())));
     let defaults = KEYBOARD.default_shortcuts();
     let rows: Vec<ShortcutRow> = ShortcutAction::ALL
@@ -377,10 +442,24 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = ui.as_weak();
         move || {
             if let Some(ui) = weak.upgrade() {
+                with_view(|view| {
+                    view.captions.set_plain(!ui.get_highlight());
+                    view.overlay.set_click_through(ui.get_click_through());
+                    view.overlay.window.set_size_points(ui.get_caption_size());
+                });
                 save(&ui);
             }
         }
     });
+    ui.on_toggle_overlay({
+        let weak = ui.as_weak();
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                toggle_overlay(&ui);
+            }
+        }
+    });
+    connect_overlay(&ui);
     ui.on_toggle_captions({
         let (weak, shared) = (ui.as_weak(), shared.clone());
         move || {
@@ -407,9 +486,47 @@ fn main() -> Result<(), slint::PlatformError> {
     });
     ui.on_open_models(open_models);
 
+    // The overlay would otherwise keep the app running after its main window closes.
+    ui.window().on_close_requested(|| {
+        let _ = slint::quit_event_loop();
+        slint::CloseRequestResponse::HideWindow
+    });
+
     #[cfg(feature = "snapshot")]
     snapshot::schedule(&ui);
-    ui.run()
+    let ended = ui.run();
+    // Recognition has to finish its pass, or the GPU library crashes while the app exits.
+    let session = shared
+        .session
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take();
+    if let Some(session) = session {
+        session.capture.stop();
+        session.engine.stop();
+    }
+    ended
+}
+
+fn connect_overlay(ui: &MainWindow) {
+    let handle = || ui.as_weak();
+    let act = |weak: Weak<MainWindow>, action: fn(&MainWindow)| {
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                action(&ui);
+            }
+        }
+    };
+    with_view(|view| {
+        let window = &view.overlay.window;
+        window.on_smaller(act(handle(), |ui| change_size(ui, -SIZE_STEP)));
+        window.on_larger(act(handle(), |ui| change_size(ui, SIZE_STEP)));
+        window.on_toggle_expanded(act(handle(), toggle_expanded));
+        window.on_click_through(act(handle(), |ui| set_click_through(ui, true)));
+        window.on_hide_overlay(act(handle(), hide_overlay));
+        window.on_move_window(|| with_view(|view| view.overlay.start_move()));
+        window.on_resize_window(|| with_view(|view| view.overlay.start_resize()));
+    });
 }
 
 /// Saves pictures of the window, so the interface can be checked without a person.
@@ -432,6 +549,24 @@ mod snapshot {
         }
         if std::env::var_os("SOUNDVEIL_AUTOSTART").is_some() {
             ui.invoke_toggle_captions();
+        }
+        // Points at the overlay and optionally expands it, once the window exists.
+        if let Ok(at) = std::env::var("SOUNDVEIL_HOVER_AT").map(|at| at.parse().unwrap_or(1.0)) {
+            let weak = ui.as_weak();
+            Timer::single_shot(Duration::from_secs_f64(at), move || {
+                if std::env::var_os("SOUNDVEIL_EXPAND").is_some()
+                    && let Some(ui) = weak.upgrade()
+                {
+                    toggle_expanded(&ui);
+                }
+                with_view(|view| {
+                    view.overlay.window.window().dispatch_event(
+                        slint::platform::WindowEvent::PointerMoved {
+                            position: slint::LogicalPosition::new(300.0, 60.0),
+                        },
+                    );
+                });
+            });
         }
         // Adds history lines quickly, to check the list without a long recording.
         if let Some(lines) = std::env::var("SOUNDVEIL_FILL")
@@ -462,7 +597,14 @@ mod snapshot {
             let file = path.replace(".png", &format!("-{index}.png"));
             Timer::single_shot(Duration::from_secs_f64(seconds), move || {
                 if let Some(ui) = weak.upgrade() {
-                    let picture = ui.window().take_snapshot().expect("window snapshot");
+                    // SOUNDVEIL_SHOT=overlay pictures the overlay rather than the main window.
+                    let overlay = std::env::var("SOUNDVEIL_SHOT").is_ok_and(|v| v == "overlay");
+                    let picture = if overlay {
+                        with_view(|view| view.overlay.window.window().take_snapshot())
+                    } else {
+                        ui.window().take_snapshot()
+                    };
+                    let picture = picture.expect("window snapshot");
                     let out = std::fs::File::create(&file).expect("snapshot file");
                     let mut encoder = png::Encoder::new(out, picture.width(), picture.height());
                     encoder.set_color(png::ColorType::Rgba);

@@ -1,4 +1,8 @@
 import { AboutSlint, Button, ComboBox, ListView, Palette, ProgressIndicator, ScrollView, Slider, Spinner, Switch } from "std-widgets.slint";
+import { CaptionWord, CaptionWords } from "captions.slint";
+
+export { CaptionOverlay } from "overlay.slint";
+export { CaptionWord }
 
 export struct HistoryLine {
     time: string,
@@ -64,8 +68,7 @@ component Tab inherits Rectangle {
 
 // The dark panel that previews what the overlay shows.
 component Stage inherits Rectangle {
-    in property <string> confirmed;
-    in property <string> tentative;
+    in property <[CaptionWord]> words;
     in property <string> placeholder;
     in property <float> size;
     in property <float> level;
@@ -75,39 +78,16 @@ component Stage inherits Rectangle {
     border-width: 1px;
     border-color: Theme.stage-edge;
     clip: true;
-    VerticalLayout {
-        padding-left: 18px;
-        padding-right: 18px;
-        padding-top: 12px;
-        padding-bottom: 12px;
-        spacing: 2px;
-        if root.placeholder != "": Text {
-            text: root.placeholder;
-            font-size: 17px;
-            color: Theme.stage-text.with-alpha(0.5);
-            horizontal-alignment: center;
-            vertical-alignment: center;
-            vertical-stretch: 1;
-        }
-        if root.confirmed != "": Text {
-            text: root.confirmed;
-            font-size: root.size * 1px;
-            font-weight: 600;
-            color: Theme.stage-text;
-            wrap: word-wrap;
-            vertical-alignment: bottom;
-            vertical-stretch: 1;
-            min-height: 0px;
-            overflow: clip;
-        }
-        if root.tentative != "": Text {
-            text: root.tentative;
-            font-size: root.size * 1px;
-            font-weight: 600;
-            color: Theme.stage-text.with-alpha(0.62);
-            wrap: word-wrap;
-        }
+    CaptionWords {
+        x: 18px;
+        y: 12px;
+        width: parent.width - 36px;
+        height: parent.height - 24px;
+        words: root.words;
+        placeholder: root.placeholder;
+        size: root.size;
     }
+
     Rectangle {
         x: 0;
         y: parent.height - self.height;
@@ -119,8 +99,7 @@ component Stage inherits Rectangle {
 }
 
 component CaptionsPage inherits VerticalLayout {
-    in property <string> confirmed;
-    in property <string> tentative;
+    in property <[CaptionWord]> words;
     in property <string> placeholder;
     in property <float> level;
     in property <string> status;
@@ -136,7 +115,9 @@ component CaptionsPage inherits VerticalLayout {
     in-out property <float> threshold;
     in property <[HistoryLine]> history;
     in property <int> history-count;
+    in property <bool> overlay-shown;
     callback toggle-captions();
+    callback toggle-overlay();
     callback model-chosen(int);
     callback download-model();
     callback cancel-download();
@@ -145,8 +126,7 @@ component CaptionsPage inherits VerticalLayout {
 
     spacing: Theme.page-gap;
     Stage {
-        confirmed: root.confirmed;
-        tentative: root.tentative;
+        words: root.words;
         placeholder: root.placeholder;
         size: root.caption-size;
         level: root.level;
@@ -160,6 +140,13 @@ component CaptionsPage inherits VerticalLayout {
             enabled: !root.busy && (root.listening || root.installed);
             clicked => {
                 root.toggle-captions();
+            }
+        }
+
+        Button {
+            text: root.overlay-shown ? "Hide overlay" : "Show overlay";
+            clicked => {
+                root.toggle-overlay();
             }
         }
 
@@ -460,8 +447,7 @@ export component MainWindow inherits Window {
     min-width: 600px;
     min-height: 640px;
     in-out property <int> page: 0;
-    in property <string> confirmed;
-    in property <string> tentative;
+    in property <[CaptionWord]> words;
     in property <string> placeholder;
     in property <float> level;
     in property <string> status;
@@ -484,7 +470,9 @@ export component MainWindow inherits Window {
     in-out property <int> speed-index;
     in-out property <bool> highlight: true;
     in-out property <bool> click-through;
+    in property <bool> overlay-shown;
     callback toggle-captions();
+    callback toggle-overlay();
     callback model-chosen(int);
     callback speed-chosen(int);
     callback download-model();
@@ -542,8 +530,7 @@ export component MainWindow inherits Window {
 
         if root.page == 0: CaptionsPage {
             vertical-stretch: 1;
-            confirmed: root.confirmed;
-            tentative: root.tentative;
+            words: root.words;
             placeholder: root.placeholder;
             level: root.level;
             status: root.status;
@@ -559,8 +546,12 @@ export component MainWindow inherits Window {
             threshold <=> root.threshold;
             history: root.history;
             history-count: root.history-count;
+            overlay-shown: root.overlay-shown;
             toggle-captions => {
                 root.toggle-captions();
+            }
+            toggle-overlay => {
+                root.toggle-overlay();
             }
             model-chosen(index) => {
                 root.model-chosen(index);

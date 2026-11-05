@@ -4,6 +4,16 @@ use crate::paths;
 use serde::{Deserialize, Serialize};
 use std::fs;
 
+/// Where the overlay sits. The position is in physical pixels and the size in logical ones, which
+/// is how the two are set.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Frame {
+    pub x: i32,
+    pub y: i32,
+    pub width: f32,
+    pub height: f32,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Settings {
@@ -13,6 +23,7 @@ pub struct Settings {
     pub quiet_threshold: f32,
     pub highlight_words: bool,
     pub click_through: bool,
+    pub overlay: Option<Frame>,
 }
 
 impl Default for Settings {
@@ -24,6 +35,7 @@ impl Default for Settings {
             quiet_threshold: -50.0,
             highlight_words: true,
             click_through: false,
+            overlay: None,
         }
     }
 }
