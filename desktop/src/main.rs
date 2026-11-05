@@ -7,6 +7,9 @@ mod paths;
 #[allow(dead_code)]
 mod settings;
 
+#[allow(dead_code)]
+mod download;
+
 use slint::ComponentHandle;
 
 slint::include_modules!();
