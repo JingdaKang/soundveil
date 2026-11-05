@@ -5,6 +5,7 @@
 mod audio;
 mod capture;
 mod captions;
+mod check;
 mod download;
 mod engine;
 mod export;
@@ -28,7 +29,7 @@ use soundveil_core::{
 };
 use std::path::PathBuf;
 use std::cell::{OnceCell, RefCell};
-use std::process::Command;
+use std::process::{Command, ExitCode};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -373,14 +374,29 @@ fn open_models() {
     let _ = Command::new(opener).arg(folder).spawn();
 }
 
-fn main() -> Result<(), slint::PlatformError> {
+fn main() -> ExitCode {
     let mut arguments = std::env::args().skip(1);
     let mut replay = None;
     while let Some(argument) = arguments.next() {
-        if argument == "--replay" {
-            replay = arguments.next().map(PathBuf::from);
+        match argument.as_str() {
+            "--replay" => replay = arguments.next().map(PathBuf::from),
+            "--capture-check" => {
+                let seconds = arguments.next().and_then(|text| text.parse().ok());
+                return check::run(seconds.unwrap_or(5.0));
+            }
+            _ => {}
         }
     }
+    match run_app(replay) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run_app(replay: Option<PathBuf>) -> Result<(), slint::PlatformError> {
     let shared = Arc::new(Shared {
         replay,
         ..Shared::default()
@@ -860,6 +876,9 @@ mod snapshot {
                     perform(&ui, &script);
                 }
             });
+        }
+        if std::env::var_os("SOUNDVEIL_OVERLAY").is_some() {
+            show_overlay(ui);
         }
         // Points at the overlay and optionally expands it, once the window exists.
         if let Ok(at) = std::env::var("SOUNDVEIL_HOVER_AT").map(|at| at.parse().unwrap_or(1.0)) {
