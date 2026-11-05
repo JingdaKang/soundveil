@@ -4,9 +4,11 @@
 //! Capture, inference, and drawing belong to each platform, so everything here can be
 //! tested without audio, a model, or a window.
 
+pub mod expressive;
 pub mod pipeline;
 pub mod rolling;
 
+pub use expressive::{WordStyle, cue_label, word_styles};
 pub use pipeline::{Caption, SpeechEvent, SpeechGate, Word};
 pub use rolling::{
     CaptionUpdate, DecodeJob, PlacedWord, RollingTranscriber, UpdateSpeed, WordPlacer,
