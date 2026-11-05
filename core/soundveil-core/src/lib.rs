@@ -20,7 +20,7 @@ pub use rolling::{
     CaptionUpdate, DecodeJob, PlacedWord, RollingTranscriber, UpdateSpeed, WordPlacer,
     reveal_interval, update_interval,
 };
-pub use shortcuts::{Keyboard, Shortcut, ShortcutAction, ShortcutMap};
+pub use shortcuts::{Held, Keyboard, Shortcut, ShortcutAction, ShortcutMap};
 pub use tokens::words_from_tokens;
 
 /// Whisper's input rate. All audio in this crate is mono at this rate.

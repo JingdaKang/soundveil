@@ -71,10 +71,12 @@ pub struct Keyboard {
     pub control: u32,
     pub alt: u32,
     pub shift: u32,
-    /// Command on a Mac, the Windows key on Windows.
+    /// Command on a Mac, the Windows key on Windows, Super on Linux.
     pub system: u32,
     function_keys: &'static [u32],
     labels: LabelStyle,
+    system_word: &'static str,
+    key_code: fn(&str) -> Option<u32>,
     defaults: fn() -> ShortcutMap,
 }
 
@@ -90,6 +92,8 @@ impl Keyboard {
             90,
         ],
         labels: LabelStyle::Symbols,
+        system_word: "Cmd",
+        key_code: mac_key_code,
         defaults: mac_defaults,
     };
 
@@ -104,12 +108,132 @@ impl Keyboard {
             0x7E, 0x7F, 0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87,
         ],
         labels: LabelStyle::Words,
+        system_word: "Win",
+        key_code: windows_key_code,
         defaults: windows_defaults,
+    };
+
+    /// X11 modifier masks and keysyms.
+    pub const LINUX: Self = Self {
+        control: 4,
+        alt: 8,
+        shift: 1,
+        system: 64,
+        function_keys: &[
+            0xFFBE, 0xFFBF, 0xFFC0, 0xFFC1, 0xFFC2, 0xFFC3, 0xFFC4, 0xFFC5, 0xFFC6, 0xFFC7, 0xFFC8,
+            0xFFC9, 0xFFCA, 0xFFCB, 0xFFCC, 0xFFCD, 0xFFCE, 0xFFCF, 0xFFD0, 0xFFD1, 0xFFD2, 0xFFD3,
+            0xFFD4, 0xFFD5,
+        ],
+        labels: LabelStyle::Words,
+        system_word: "Super",
+        key_code: linux_key_code,
+        defaults: linux_defaults,
     };
 
     pub fn default_shortcuts(&self) -> ShortcutMap {
         (self.defaults)()
     }
+
+    /// This system's code for a key named as a shortcut shows it, such as `S`, `=`, or `F1`.
+    pub fn key_code(&self, key: &str) -> Option<u32> {
+        (self.key_code)(key)
+    }
+
+    /// The shortcut for a key press, if this system can bind that key.
+    pub fn shortcut(&self, key: &str, held: Held) -> Option<Shortcut> {
+        let pick = |on: bool, bit: u32| if on { bit } else { 0 };
+        let modifiers = pick(held.control, self.control)
+            | pick(held.alt, self.alt)
+            | pick(held.shift, self.shift)
+            | pick(held.system, self.system);
+        Some(Shortcut::new(self.key_code(key)?, modifiers, key))
+    }
+}
+
+/// The modifier keys down during a key press.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Held {
+    pub control: bool,
+    pub alt: bool,
+    pub shift: bool,
+    pub system: bool,
+}
+
+fn function_number(key: &str) -> Option<u32> {
+    key.strip_prefix('F')?
+        .parse()
+        .ok()
+        .filter(|number| (1..=24).contains(number))
+}
+
+fn single(key: &str) -> Option<char> {
+    let mut letters = key.chars();
+    letters.next().filter(|_| letters.next().is_none())
+}
+
+fn windows_key_code(key: &str) -> Option<u32> {
+    if let Some(number) = function_number(key) {
+        return Some(0x6F + number);
+    }
+    match key {
+        "Space" => return Some(0x20),
+        "Left" => return Some(0x25),
+        "Up" => return Some(0x26),
+        "Right" => return Some(0x27),
+        "Down" => return Some(0x28),
+        _ => {}
+    }
+    match single(key)? {
+        letter @ ('A'..='Z' | '0'..='9') => Some(letter as u32),
+        ';' => Some(0xBA),
+        '=' => Some(0xBB),
+        ',' => Some(0xBC),
+        '-' => Some(0xBD),
+        '.' => Some(0xBE),
+        '/' => Some(0xBF),
+        '`' => Some(0xC0),
+        '[' => Some(0xDB),
+        '\\' => Some(0xDC),
+        ']' => Some(0xDD),
+        '\'' => Some(0xDE),
+        _ => None,
+    }
+}
+
+fn linux_key_code(key: &str) -> Option<u32> {
+    if let Some(number) = function_number(key) {
+        return Some(0xFFBD + number);
+    }
+    match key {
+        "Space" => return Some(0x20),
+        "Left" => return Some(0xFF51),
+        "Up" => return Some(0xFF52),
+        "Right" => return Some(0xFF53),
+        "Down" => return Some(0xFF54),
+        _ => {}
+    }
+    let letter = single(key)?;
+    (letter.is_ascii_uppercase() || letter.is_ascii_digit() || "=-[];',./\\`".contains(letter))
+        .then(|| letter.to_ascii_lowercase() as u32)
+}
+
+fn mac_key_code(key: &str) -> Option<u32> {
+    // Carbon numbers keys by their place on a US keyboard, not by what they type.
+    const LAYOUT: &str = "ASDFHGZXCV~BQWERYT123465=97-80]OU[IP~LJ'K;\\,/NM.~~";
+    if let Some(number) = function_number(key) {
+        return Keyboard::MAC.function_keys.get(number as usize - 1).copied();
+    }
+    match key {
+        "Space" => return Some(49),
+        "`" => return Some(50),
+        "Left" => return Some(123),
+        "Right" => return Some(124),
+        "Down" => return Some(125),
+        "Up" => return Some(126),
+        _ => {}
+    }
+    let letter = single(key).filter(|letter| *letter != '~')?;
+    LAYOUT.chars().position(|c| c == letter).map(|at| at as u32)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -135,7 +259,7 @@ impl Shortcut {
             (held(keyboard.control), "⌃", "Ctrl"),
             (held(keyboard.alt), "⌥", "Alt"),
             (held(keyboard.shift), "⇧", "Shift"),
-            (held(keyboard.system), "⌘", "Win"),
+            (held(keyboard.system), "⌘", keyboard.system_word),
         ];
         let mut text = String::new();
         for (on, symbol, word) in parts {
@@ -191,6 +315,25 @@ fn windows_defaults() -> ShortcutMap {
         (ShortcutAction::LargerText, bind(0xBB, "=")),
         (ShortcutAction::SmallerText, bind(0xBD, "-")),
         (ShortcutAction::ToggleClickThrough, bind(0x54, "T")),
+    ])
+}
+
+// Linux desktops use Ctrl+Alt with a letter for their own shortcuts, such as a terminal on
+// Ctrl+Alt+T, and AltGr clashes as it does on Windows, so these add Shift too.
+fn linux_defaults() -> ShortcutMap {
+    let keyboard = Keyboard::LINUX;
+    let held = keyboard.control | keyboard.alt | keyboard.shift;
+    let bind = |key: &str| {
+        let code = keyboard.key_code(key).unwrap_or_default();
+        Shortcut::new(code, held, key)
+    };
+    ShortcutMap::new([
+        (ShortcutAction::ToggleCaptions, bind("S")),
+        (ShortcutAction::ToggleOverlay, bind("O")),
+        (ShortcutAction::ToggleExpanded, bind("E")),
+        (ShortcutAction::LargerText, bind("=")),
+        (ShortcutAction::SmallerText, bind("-")),
+        (ShortcutAction::ToggleClickThrough, bind("T")),
     ])
 }
 
@@ -257,6 +400,7 @@ mod tests {
 
     const MAC: Keyboard = Keyboard::MAC;
     const WINDOWS: Keyboard = Keyboard::WINDOWS;
+    const LINUX: Keyboard = Keyboard::LINUX;
 
     fn held() -> u32 {
         MAC.control | MAC.alt
@@ -275,7 +419,7 @@ mod tests {
 
     #[test]
     fn bare_keys_are_rejected() {
-        for keyboard in [MAC, WINDOWS] {
+        for keyboard in [MAC, WINDOWS, LINUX] {
             assert!(!Shortcut::new(1, 0, "S").is_allowed(&keyboard));
             assert!(!Shortcut::new(1, keyboard.shift, "S").is_allowed(&keyboard));
             assert!(Shortcut::new(1, keyboard.alt, "S").is_allowed(&keyboard));
@@ -286,11 +430,12 @@ mod tests {
     fn function_keys_need_no_modifier() {
         assert!(Shortcut::new(122, 0, "F1").is_allowed(&MAC));
         assert!(Shortcut::new(0x70, 0, "F1").is_allowed(&WINDOWS));
+        assert!(Shortcut::new(0xFFBE, 0, "F1").is_allowed(&LINUX));
     }
 
     #[test]
     fn defaults_are_allowed_and_distinct() {
-        for keyboard in [MAC, WINDOWS] {
+        for keyboard in [MAC, WINDOWS, LINUX] {
             let defaults = keyboard.default_shortcuts();
             let shortcuts: Vec<&Shortcut> = defaults.iter().map(|(_, s)| s).collect();
             assert!(shortcuts.iter().all(|s| s.is_allowed(&keyboard)));
@@ -307,6 +452,58 @@ mod tests {
                 .iter()
                 .all(|(_, s)| s.modifiers & WINDOWS.shift != 0)
         );
+    }
+
+    #[test]
+    fn linux_defaults_leave_altgr_free() {
+        let defaults = LINUX.default_shortcuts();
+        assert!(defaults.iter().all(|(_, s)| s.modifiers & LINUX.shift != 0));
+    }
+
+    #[test]
+    fn linux_labels_name_the_super_key() {
+        let held = LINUX.control | LINUX.system;
+        assert_eq!(Shortcut::new(0x73, held, "S").label(&LINUX), "Ctrl+Super+S");
+    }
+
+    #[test]
+    fn key_names_match_the_defaults() {
+        for keyboard in [MAC, WINDOWS, LINUX] {
+            for (_, shortcut) in keyboard.default_shortcuts().iter() {
+                assert_eq!(keyboard.key_code(&shortcut.key), Some(shortcut.key_code));
+            }
+        }
+    }
+
+    #[test]
+    fn key_codes_are_each_systems_own() {
+        assert_eq!(WINDOWS.key_code("F12"), Some(0x7B));
+        assert_eq!(LINUX.key_code("F12"), Some(0xFFC9));
+        assert_eq!(MAC.key_code("F12"), Some(111));
+        assert_eq!(WINDOWS.key_code("A"), Some(0x41));
+        assert_eq!(LINUX.key_code("A"), Some(0x61));
+        assert_eq!(MAC.key_code("A"), Some(0));
+        assert_eq!(MAC.key_code("O"), Some(31));
+        assert_eq!(MAC.key_code("."), Some(47));
+        for keyboard in [MAC, WINDOWS, LINUX] {
+            assert_eq!(keyboard.key_code("Enter"), None);
+            assert_eq!(keyboard.key_code("é"), None);
+            assert_eq!(keyboard.key_code("~"), None);
+            assert_eq!(keyboard.key_code("F25"), None);
+        }
+    }
+
+    #[test]
+    fn key_presses_become_shortcuts() {
+        let held = Held {
+            control: true,
+            shift: true,
+            ..Held::default()
+        };
+        let shortcut = LINUX.shortcut("K", held).unwrap();
+        assert_eq!(shortcut.label(&LINUX), "Ctrl+Shift+K");
+        assert!(shortcut.is_allowed(&LINUX));
+        assert_eq!(LINUX.shortcut("Enter", held), None);
     }
 
     #[test]
