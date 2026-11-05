@@ -33,7 +33,8 @@ The interface may only be touched on its own thread. Worker threads use
 
 `cargo test` needs no model or network. To see the interface without a person, build with
 `--features snapshot` and set `SOUNDVEIL_SNAPSHOT=out.png` and `SOUNDVEIL_SNAPSHOT_AT=1.5,20`.
-`SOUNDVEIL_PAGE=1` opens Settings, and `SOUNDVEIL_AUTOSTART=1` presses Start.
+`SOUNDVEIL_PAGE=1` opens Settings, `SOUNDVEIL_AUTOSTART=1` presses Start, and `SOUNDVEIL_FILL=48`
+adds history lines. A window that is covered may not draw between pictures, so take several.
 
 A replay exercises recognition and the interface. Do not describe it as verification of capture,
 an overlay, or Windows. Performance figures from a Mac say nothing about Windows.

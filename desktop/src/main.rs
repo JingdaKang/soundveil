@@ -425,6 +425,30 @@ mod snapshot {
         if std::env::var_os("SOUNDVEIL_AUTOSTART").is_some() {
             ui.invoke_toggle_captions();
         }
+        // Adds history lines quickly, to check the list without a long recording.
+        if let Some(lines) = std::env::var("SOUNDVEIL_FILL")
+            .ok()
+            .and_then(|n| n.parse().ok())
+        {
+            let weak = ui.as_weak();
+            let added = std::cell::Cell::new(0_usize);
+            let filler = Box::leak(Box::new(Timer::default()));
+            filler.start(TimerMode::Repeated, Duration::from_millis(40), move || {
+                if added.get() < lines
+                    && let Some(ui) = weak.upgrade()
+                {
+                    with_history(&ui, |list| {
+                        for _ in 0..6 {
+                            added.set(added.get() + 1);
+                            list.push(HistoryLine {
+                                time: clock(added.get() as f64).into(),
+                                text: format!("Line {} of the history.", added.get()).into(),
+                            });
+                        }
+                    });
+                }
+            });
+        }
         for (index, seconds) in times.into_iter().enumerate() {
             let weak = ui.as_weak();
             let file = path.replace(".png", &format!("-{index}.png"));
