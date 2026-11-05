@@ -24,10 +24,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: humbletim/install-vulkan-sdk@v1.2
-        with:
-          version: latest
-          cache: true
+      # CMake can't find the headers and libraries when the SDK is only unpacked, so this runs its
+      # real installer.
+      - name: Install the Vulkan SDK
+        run: |
+          version=$(curl -fsSL https://vulkan.lunarg.com/sdk/latest/windows.txt)
+          curl -fsSL -o vulkan_sdk.exe \
+            "https://sdk.lunarg.com/sdk/download/$version/windows/vulkan_sdk.exe?Human=true"
+          ./vulkan_sdk.exe --root 'C:\VulkanSDK' --accept-licenses --default-answer --confirm-command install
+          rm vulkan_sdk.exe
+          echo 'VULKAN_SDK=C:\VulkanSDK' >> "$GITHUB_ENV"
+          echo 'C:\VulkanSDK\Bin' >> "$GITHUB_PATH"
       - run: ../core/scripts/fetch-whisper.sh
       - run: cargo build --release --features vulkan
       - run: choco install innosetup -y --no-progress
