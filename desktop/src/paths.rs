@@ -4,6 +4,7 @@ use soundveil_core::Model;
 use std::env;
 use std::path::PathBuf;
 
+#[cfg(not(windows))]
 fn home() -> PathBuf {
     env::var_os("HOME").map(PathBuf::from).unwrap_or_default()
 }

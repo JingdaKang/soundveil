@@ -1,6 +1,8 @@
 // A release build opens no console window on Windows.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+#[cfg(any(windows, test))]
+mod audio;
 mod capture;
 mod download;
 mod engine;
