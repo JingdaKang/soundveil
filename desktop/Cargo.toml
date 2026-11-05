@@ -1,0 +1,25 @@
+[package]
+name = "soundveil"
+description = "Offline live captions for Windows, with its interface in Slint."
+version = "0.1.1"
+edition = "2024"
+license = "MIT"
+
+[features]
+# GPU recognition on Windows and Linux. The Vulkan SDK must be installed to build it.
+vulkan = ["soundveil-whisper/vulkan"]
+# Lets a run save a picture of the window, for checking the interface without a person.
+snapshot = ["dep:png"]
+
+[dependencies]
+hound = "3"
+png = { version = "0.18", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+slint = "1.18"
+soundveil-core = { path = "../core/soundveil-core" }
+soundveil-whisper = { path = "../core/soundveil-whisper" }
+ureq = "3"
+
+[build-dependencies]
+slint-build = "1.18"

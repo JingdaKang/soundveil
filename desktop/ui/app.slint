@@ -1,0 +1,606 @@
+import { AboutSlint, Button, ComboBox, ListView, Palette, ProgressIndicator, ScrollView, Slider, Spinner, Switch } from "std-widgets.slint";
+
+export struct HistoryLine {
+    time: string,
+    text: string,
+}
+
+export struct ShortcutRow {
+    title: string,
+    keys: string,
+}
+
+global Theme {
+    out property <length> page-gap: 14px;
+    out property <length> card-padding: 16px;
+    out property <length> radius: 10px;
+    out property <color> stage: #15171c;
+    out property <color> stage-edge: #2a2e36;
+    out property <color> stage-text: #f5f6f8;
+    out property <color> accent: #ffa726;
+}
+
+component Card inherits Rectangle {
+    background: Palette.alternate-background;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Palette.border;
+    VerticalLayout {
+        padding: Theme.card-padding;
+        spacing: 10px;
+        @children
+    }
+}
+
+component Heading inherits Text {
+    font-size: 13px;
+    font-weight: 600;
+    color: Palette.foreground;
+}
+
+component Note inherits Text {
+    font-size: 12px;
+    color: Palette.foreground.with-alpha(0.62);
+    wrap: word-wrap;
+}
+
+component Tab inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    callback clicked <=> touch.clicked;
+    min-width: 92px;
+    height: 32px;
+    border-radius: 6px;
+    background: root.active ? Palette.accent-background : touch.has-hover ? Palette.border : transparent;
+    animate background { duration: 120ms; }
+    Text {
+        text: root.label;
+        font-size: 13px;
+        font-weight: root.active ? 600 : 400;
+        color: root.active ? Palette.accent-foreground : Palette.foreground;
+    }
+    touch := TouchArea { }
+}
+
+// The dark panel that previews what the overlay shows.
+component Stage inherits Rectangle {
+    in property <string> confirmed;
+    in property <string> tentative;
+    in property <string> placeholder;
+    in property <float> size;
+    in property <float> level;
+    height: 136px;
+    border-radius: Theme.radius;
+    background: Theme.stage;
+    border-width: 1px;
+    border-color: Theme.stage-edge;
+    clip: true;
+    VerticalLayout {
+        padding-left: 18px;
+        padding-right: 18px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 2px;
+        if root.placeholder != "": Text {
+            text: root.placeholder;
+            font-size: 17px;
+            color: Theme.stage-text.with-alpha(0.5);
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            vertical-stretch: 1;
+        }
+        if root.confirmed != "": Text {
+            text: root.confirmed;
+            font-size: root.size * 1px;
+            font-weight: 600;
+            color: Theme.stage-text;
+            wrap: word-wrap;
+            vertical-alignment: bottom;
+            vertical-stretch: 1;
+            min-height: 0px;
+            overflow: clip;
+        }
+        if root.tentative != "": Text {
+            text: root.tentative;
+            font-size: root.size * 1px;
+            font-weight: 600;
+            color: Theme.stage-text.with-alpha(0.62);
+            wrap: word-wrap;
+        }
+    }
+    Rectangle {
+        x: 0;
+        y: parent.height - self.height;
+        height: 3px;
+        width: parent.width * clamp(root.level, 0, 1);
+        background: Theme.accent;
+        animate width { duration: 90ms; }
+    }
+}
+
+component CaptionsPage inherits VerticalLayout {
+    in property <string> confirmed;
+    in property <string> tentative;
+    in property <string> placeholder;
+    in property <float> level;
+    in property <string> status;
+    in property <bool> listening;
+    in property <bool> busy;
+    in property <bool> installed;
+    in property <bool> downloading;
+    in property <float> progress;
+    in property <[string]> model-titles;
+    in property <string> model-detail;
+    in-out property <int> model-index;
+    in-out property <float> caption-size;
+    in-out property <float> threshold;
+    in property <[HistoryLine]> history;
+    in property <int> history-count;
+    callback toggle-captions();
+    callback model-chosen(int);
+    callback download-model();
+    callback cancel-download();
+    callback open-models();
+    callback settings-changed();
+
+    spacing: Theme.page-gap;
+    Stage {
+        confirmed: root.confirmed;
+        tentative: root.tentative;
+        placeholder: root.placeholder;
+        size: root.caption-size;
+        level: root.level;
+    }
+
+    HorizontalLayout {
+        spacing: 12px;
+        Button {
+            text: root.listening ? "Stop" : "Start captions";
+            primary: true;
+            enabled: !root.busy && (root.listening || root.installed);
+            clicked => {
+                root.toggle-captions();
+            }
+        }
+
+        if root.busy: Spinner {
+            indeterminate: true;
+            width: 20px;
+            height: 20px;
+        }
+        Text {
+            text: root.status;
+            font-size: 13px;
+            color: Palette.foreground;
+            wrap: word-wrap;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+    }
+
+    Card {
+        Heading {
+            text: "Recognition model";
+        }
+
+        ComboBox {
+            model: root.model-titles;
+            current-index <=> root.model-index;
+            enabled: !root.listening && !root.busy && !root.downloading;
+            selected => {
+                root.model-chosen(self.current-index);
+            }
+        }
+
+        Note {
+            text: root.model-detail;
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+            if root.downloading: ProgressIndicator {
+                progress: root.progress;
+                horizontal-stretch: 1;
+                height: 6px;
+                y: (parent.height - self.height) / 2;
+            }
+            if root.downloading: Button {
+                text: "Cancel download";
+                clicked => {
+                    root.cancel-download();
+                }
+            }
+            if !root.downloading: Button {
+                text: root.installed ? "Model installed" : "Download model (free)";
+                enabled: !root.installed && !root.busy;
+                clicked => {
+                    root.download-model();
+                }
+            }
+            if !root.downloading: Button {
+                text: "Open model folder";
+                clicked => {
+                    root.open-models();
+                }
+            }
+            if !root.downloading: Rectangle {
+                horizontal-stretch: 1;
+            }
+        }
+    }
+
+    Card {
+        HorizontalLayout {
+            spacing: 10px;
+            Heading {
+                text: "Caption size";
+                min-width: 150px;
+                vertical-alignment: center;
+            }
+
+            Slider {
+                minimum: 18;
+                maximum: 48;
+                value <=> root.caption-size;
+                released => {
+                    root.settings-changed();
+                }
+            }
+
+            Note {
+                text: "\{round(root.caption-size)} pt";
+                wrap: no-wrap;
+                min-width: 48px;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 10px;
+            Heading {
+                text: "Quiet speech threshold";
+                min-width: 150px;
+                vertical-alignment: center;
+            }
+
+            Slider {
+                minimum: -65;
+                maximum: -35;
+                value <=> root.threshold;
+                enabled: !root.listening && !root.busy;
+                released => {
+                    root.settings-changed();
+                }
+            }
+
+            Note {
+                text: "\{round(root.threshold)} dB";
+                wrap: no-wrap;
+                min-width: 48px;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    Card {
+        vertical-stretch: 1;
+        Heading {
+            text: "Caption history";
+        }
+
+        if root.history-count == 0: Note {
+            text: "Finished sentences appear here.";
+        }
+        list := ListView {
+            min-height: 96px;
+            vertical-stretch: 1;
+            for line in root.history: HorizontalLayout {
+                spacing: 12px;
+                padding-top: 3px;
+                padding-bottom: 3px;
+                Text {
+                    text: line.time;
+                    font-size: 13px;
+                    color: Palette.foreground.with-alpha(0.62);
+                    width: 44px;
+                }
+
+                Text {
+                    text: line.text;
+                    font-size: 13px;
+                    color: Palette.foreground;
+                    wrap: word-wrap;
+                }
+            }
+        }
+    }
+
+    // The list measures a new row after this property changes, so scrolling waits a moment.
+    follow := Timer {
+        interval: 40ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            list.content-y = min(0px, list.visible-height - list.content-height);
+        }
+    }
+
+    changed history-count => {
+        follow.running = true;
+    }
+}
+
+component SwitchRow inherits VerticalLayout {
+    in property <string> title;
+    in property <string> note;
+    in-out property <bool> checked;
+    callback toggled();
+    spacing: 4px;
+    HorizontalLayout {
+        Text {
+            text: root.title;
+            font-size: 13px;
+            color: Palette.foreground;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+
+        Switch {
+            checked <=> root.checked;
+            toggled => {
+                root.toggled();
+            }
+        }
+    }
+
+    if root.note != "": Note {
+        text: root.note;
+    }
+}
+
+component SettingsPage inherits ScrollView {
+    in property <[string]> speed-titles;
+    in property <string> speed-detail;
+    in property <[ShortcutRow]> shortcuts;
+    in property <string> version;
+    in-out property <int> speed-index;
+    in-out property <bool> highlight;
+    in-out property <bool> click-through;
+    callback speed-chosen(int);
+    callback settings-changed();
+
+    VerticalLayout {
+        spacing: Theme.page-gap;
+        padding-right: 12px;
+        Card {
+            Heading {
+                text: "Captions";
+            }
+
+            HorizontalLayout {
+                spacing: 10px;
+                Text {
+                    text: "Update speed";
+                    font-size: 13px;
+                    color: Palette.foreground;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                ComboBox {
+                    model: root.speed-titles;
+                    current-index <=> root.speed-index;
+                    min-width: 240px;
+                    selected => {
+                        root.speed-chosen(self.current-index);
+                    }
+                }
+            }
+
+            Note {
+                text: root.speed-detail;
+            }
+
+            SwitchRow {
+                title: "Highlight sound words and slang";
+                checked <=> root.highlight;
+                toggled => {
+                    root.settings-changed();
+                }
+            }
+
+            SwitchRow {
+                title: "Click through overlay";
+                note: "Clicks pass to whatever is behind the overlay. It can't be dragged or show its controls until this is off.";
+                checked <=> root.click-through;
+                toggled => {
+                    root.settings-changed();
+                }
+            }
+        }
+
+        Card {
+            Heading {
+                text: "Keyboard shortcuts";
+            }
+
+            for row in root.shortcuts: HorizontalLayout {
+                Text {
+                    text: row.title;
+                    font-size: 13px;
+                    color: Palette.foreground;
+                    horizontal-stretch: 1;
+                }
+
+                Text {
+                    text: row.keys;
+                    font-size: 13px;
+                    color: Palette.foreground.with-alpha(0.62);
+                }
+            }
+            Note {
+                text: "These work in every app, including while your browser is in front.";
+            }
+        }
+
+        Card {
+            Heading {
+                text: "About";
+            }
+
+            Note {
+                text: "Soundveil \{root.version}. Speech is recognized on this computer, and no audio or text leaves it.";
+            }
+
+            AboutSlint {
+                max-height: 180px;
+            }
+        }
+    }
+}
+
+export component MainWindow inherits Window {
+    title: "Soundveil";
+    preferred-width: 720px;
+    preferred-height: 800px;
+    min-width: 600px;
+    min-height: 640px;
+    in-out property <int> page: 0;
+    in property <string> confirmed;
+    in property <string> tentative;
+    in property <string> placeholder;
+    in property <float> level;
+    in property <string> status;
+    in property <bool> listening;
+    in property <bool> busy;
+    in property <bool> installed;
+    in property <bool> downloading;
+    in property <float> progress;
+    in property <[string]> model-titles;
+    in property <string> model-detail;
+    in-out property <int> model-index;
+    in-out property <float> caption-size: 28;
+    in-out property <float> threshold: -50;
+    in property <[HistoryLine]> history;
+    in property <int> history-count;
+    in property <[string]> speed-titles;
+    in property <string> speed-detail;
+    in property <[ShortcutRow]> shortcuts;
+    in property <string> version;
+    in-out property <int> speed-index;
+    in-out property <bool> highlight: true;
+    in-out property <bool> click-through;
+    callback toggle-captions();
+    callback model-chosen(int);
+    callback speed-chosen(int);
+    callback download-model();
+    callback cancel-download();
+    callback open-models();
+    callback settings-changed();
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: Theme.page-gap;
+        HorizontalLayout {
+            spacing: 4px;
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: "Soundveil";
+                    font-size: 26px;
+                    font-weight: 700;
+                    color: Palette.foreground;
+                }
+
+                Note {
+                    text: "ON DEVICE · ENGLISH";
+                    font-size: 11px;
+                    letter-spacing: 0.6px;
+                }
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+
+            VerticalLayout {
+                alignment: center;
+                HorizontalLayout {
+                    spacing: 4px;
+                    Tab {
+                        label: "Captions";
+                        active: root.page == 0;
+                        clicked => {
+                            root.page = 0;
+                        }
+                    }
+
+                    Tab {
+                        label: "Settings";
+                        active: root.page == 1;
+                        clicked => {
+                            root.page = 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        if root.page == 0: CaptionsPage {
+            vertical-stretch: 1;
+            confirmed: root.confirmed;
+            tentative: root.tentative;
+            placeholder: root.placeholder;
+            level: root.level;
+            status: root.status;
+            listening: root.listening;
+            busy: root.busy;
+            installed: root.installed;
+            downloading: root.downloading;
+            progress: root.progress;
+            model-titles: root.model-titles;
+            model-detail: root.model-detail;
+            model-index <=> root.model-index;
+            caption-size <=> root.caption-size;
+            threshold <=> root.threshold;
+            history: root.history;
+            history-count: root.history-count;
+            toggle-captions => {
+                root.toggle-captions();
+            }
+            model-chosen(index) => {
+                root.model-chosen(index);
+            }
+            download-model => {
+                root.download-model();
+            }
+            cancel-download => {
+                root.cancel-download();
+            }
+            open-models => {
+                root.open-models();
+            }
+            settings-changed => {
+                root.settings-changed();
+            }
+        }
+        if root.page == 1: SettingsPage {
+            vertical-stretch: 1;
+            speed-titles: root.speed-titles;
+            speed-detail: root.speed-detail;
+            speed-index <=> root.speed-index;
+            shortcuts: root.shortcuts;
+            version: root.version;
+            highlight <=> root.highlight;
+            click-through <=> root.click-through;
+            speed-chosen(index) => {
+                root.speed-chosen(index);
+            }
+            settings-changed => {
+                root.settings-changed();
+            }
+        }
+    }
+}
