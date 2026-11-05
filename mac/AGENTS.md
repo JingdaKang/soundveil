@@ -1,7 +1,8 @@
-# Soundveil
+# Soundveil for Mac
 
-This project is a single native macOS application. Keep its Swift package and app
-source together here; do not modify neighboring projects.
+This folder is the native macOS application, and the only released part of Soundveil.
+Keep its Swift package and app source together here. Read `../AGENTS.md` for how the
+parts of the project relate.
 
 ## Components
 

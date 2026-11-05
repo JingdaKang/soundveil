@@ -16,7 +16,7 @@ APP="$PWD/dist/Soundveil.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Soundveil "$APP/Contents/MacOS/Soundveil"
 cp Info.plist "$APP/Contents/Info.plist"
-cp LICENSE "$APP/Contents/Resources/LICENSE.txt"
+cp ../LICENSE "$APP/Contents/Resources/LICENSE.txt"
 cp vendor/whisper.cpp/LICENSE "$APP/Contents/Resources/whisper-LICENSE.txt"
 IDENTITY="${SOUNDVEIL_SIGN_IDENTITY:-Soundveil Local Signing}"
 if security find-certificate -c "$IDENTITY" >/dev/null 2>&1; then

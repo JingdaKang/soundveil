@@ -1,7 +1,5 @@
-.gitignore
 AGENTS.md
 Info.plist
-LICENSE
 Package.swift
 README.md
 Sources/CWhisperBridge/Bridge.c
