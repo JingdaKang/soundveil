@@ -7,6 +7,7 @@ mod capture;
 mod captions;
 mod download;
 mod engine;
+mod export;
 mod feed;
 mod overlay;
 mod paths;
@@ -485,6 +486,14 @@ fn main() -> Result<(), slint::PlatformError> {
         move || shared.cancel.store(true, Ordering::Relaxed)
     });
     ui.on_open_models(open_models);
+    ui.on_export_history({
+        let weak = ui.as_weak();
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                export_history(&ui);
+            }
+        }
+    });
 
     // The overlay would otherwise keep the app running after its main window closes.
     ui.window().on_close_requested(|| {
@@ -506,6 +515,20 @@ fn main() -> Result<(), slint::PlatformError> {
         session.engine.stop();
     }
     ended
+}
+
+fn export_history(ui: &MainWindow) {
+    let lines = ui.get_history();
+    let contents = export::text(&lines);
+    let weak = ui.as_weak();
+    let saving = async move {
+        if let Err(error) = export::save(contents).await
+            && let Some(ui) = weak.upgrade()
+        {
+            ui.set_status(error.into());
+        }
+    };
+    let _ = slint::spawn_local(saving);
 }
 
 fn connect_overlay(ui: &MainWindow) {

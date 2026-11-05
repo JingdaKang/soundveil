@@ -123,6 +123,7 @@ component CaptionsPage inherits VerticalLayout {
     callback cancel-download();
     callback open-models();
     callback settings-changed();
+    callback export-history();
 
     spacing: Theme.page-gap;
     Stage {
@@ -273,8 +274,20 @@ component CaptionsPage inherits VerticalLayout {
 
     Card {
         vertical-stretch: 1;
-        Heading {
-            text: "Caption history";
+        HorizontalLayout {
+            Heading {
+                text: "Caption history";
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+
+            Button {
+                text: "Export…";
+                enabled: root.history-count > 0;
+                clicked => {
+                    root.export-history();
+                }
+            }
         }
 
         if root.history-count == 0: Note {
@@ -473,6 +486,7 @@ export component MainWindow inherits Window {
     in property <bool> overlay-shown;
     callback toggle-captions();
     callback toggle-overlay();
+    callback export-history();
     callback model-chosen(int);
     callback speed-chosen(int);
     callback download-model();
@@ -552,6 +566,9 @@ export component MainWindow inherits Window {
             }
             toggle-overlay => {
                 root.toggle-overlay();
+            }
+            export-history => {
+                root.export-history();
             }
             model-chosen(index) => {
                 root.model-chosen(index);
