@@ -12,8 +12,12 @@ about what has actually been seen working.
 - Seen working on a Mac, which also runs this app: the interface, settings, model download
   against a local server, recognition, captions, the overlay's look and layout, shortcut
   recording, and export text.
-- Compiled but never run on the real system: WASAPI capture, the Windows overlay behaviour, and
-  Windows and Linux shortcuts. Wayland shortcuts through the portal have never been run at all.
+- Seen working in CI: the app and its overlay open on Windows and Linux, and `--capture-check`
+  hears a tone at the right level from a real PulseAudio server. The Windows installer and Linux
+  packages build, with Vulkan. Those machines have no GPU or speakers.
+- Compiled but never run: WASAPI capture, and installing either package. Windows and Linux
+  shortcuts, click-through, and moving the overlay have never been tried by a person. Wayland
+  shortcuts through the portal have never been run at all.
 - Not built yet: the update check, and slowing down when hot or on battery (`engine.rs` passes
   `false` to `update_interval`, and the Automatic speed's description promises it).
 
@@ -57,6 +61,8 @@ The interface may only be touched on its own thread. Worker threads use
 - `core/soundveil-whisper/build.rs` turns off the build machine's processor features for x86_64, so
   a release needs AVX2 and nothing newer.
 - The installer ships `vulkan-1.dll`, because the program links to it and won't start without one.
+- A Windows build with Vulkan needs a short `CARGO_TARGET_DIR`. whisper.cpp's shader step nests deep
+  enough to pass the path limit from `desktop\\target`.
 
 ## Validation
 
