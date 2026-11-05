@@ -13,6 +13,9 @@ mod download;
 #[allow(dead_code)]
 mod engine;
 
+#[allow(dead_code)]
+mod capture;
+
 use slint::ComponentHandle;
 
 slint::include_modules!();
