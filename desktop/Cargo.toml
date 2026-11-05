@@ -12,9 +12,10 @@ vulkan = ["soundveil-whisper/vulkan"]
 snapshot = ["dep:png"]
 
 [dependencies]
+global-hotkey = "0.9"
 hound = "3"
-rfd = "0.17"
 png = { version = "0.18", optional = true }
+rfd = "0.17"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 slint = { version = "~1.18", features = ["unstable-winit-030"] }
@@ -32,6 +33,9 @@ windows = { version = "0.62", features = [
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
+ashpd = { version = "0.14", default-features = false, features = ["async-io", "global_shortcuts"] }
+futures-util = "0.3"
+pollster = "0.4"
 libpulse-binding = "2"
 libpulse-simple-binding = "2"
 

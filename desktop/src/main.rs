@@ -9,19 +9,25 @@ mod download;
 mod engine;
 mod export;
 mod feed;
+mod hotkeys;
 mod overlay;
 mod paths;
+#[cfg(target_os = "linux")]
+mod portal;
 mod settings;
 
 use capture::{Capture, Sink};
 use captions::Captions;
 use engine::{Engine, Reports};
+use hotkeys::Hotkeys;
 use overlay::Overlay;
 use settings::Settings;
 use slint::{ComponentHandle, Model as _, ModelRc, SharedString, VecModel, Weak};
-use soundveil_core::{CaptionUpdate, Keyboard, Model, ShortcutAction, UpdateSpeed};
+use soundveil_core::{
+    CaptionUpdate, Held, Keyboard, Model, ShortcutAction, ShortcutMap, UpdateSpeed,
+};
 use std::path::PathBuf;
-use std::cell::OnceCell;
+use std::cell::{OnceCell, RefCell};
 use std::process::Command;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -37,8 +43,10 @@ const LARGEST: f32 = 48.0;
 
 #[cfg(target_os = "macos")]
 const KEYBOARD: Keyboard = Keyboard::MAC;
-#[cfg(not(target_os = "macos"))]
+#[cfg(windows)]
 const KEYBOARD: Keyboard = Keyboard::WINDOWS;
+#[cfg(not(any(windows, target_os = "macos")))]
+const KEYBOARD: Keyboard = Keyboard::LINUX;
 
 struct Session {
     engine: Arc<Engine>,
@@ -58,6 +66,11 @@ struct Shared {
 struct View {
     captions: Rc<Captions>,
     overlay: Rc<Overlay>,
+    shortcuts: RefCell<ShortcutMap>,
+    /// `None` where the desktop owns the keys, as it does on Wayland.
+    hotkeys: Option<RefCell<Hotkeys>>,
+    /// Who else has a key, by action, and anything that explains the keys as a whole.
+    clashes: RefCell<Vec<ShortcutAction>>,
 }
 
 thread_local! {
@@ -372,17 +385,26 @@ fn main() -> Result<(), slint::PlatformError> {
         replay,
         ..Shared::default()
     });
+    let on_wayland = leave_wayland();
     let settings = Settings::load();
     overlay::prepare()?;
     let ui = MainWindow::new()?;
+    let shortcuts = std::fs::read(paths::shortcuts_file())
+        .ok()
+        .and_then(|data| ShortcutMap::from_json(&data))
+        .unwrap_or_else(|| KEYBOARD.default_shortcuts());
     let view = View {
         captions: Captions::new(!settings.highlight_words),
         overlay: Overlay::new(settings.overlay, settings.click_through)?,
+        shortcuts: RefCell::new(shortcuts),
+        hotkeys: (!on_wayland).then(|| RefCell::new(Hotkeys::new(firing(ui.as_weak())))),
+        clashes: RefCell::new(Vec::new()),
     };
     ui.set_words(view.captions.model());
     view.overlay.window.set_words(view.captions.model());
     view.overlay.window.set_size_points(settings.caption_size);
     VIEW.with(|cell| cell.set(view).map_err(|_| ()).expect("one view"));
+    connect_shortcuts(&ui, on_wayland);
     let saved_model = Model::saved(Some(&settings.model));
     let saved_speed = UpdateSpeed::saved(Some(&settings.update_speed));
     ui.set_version(env!("CARGO_PKG_VERSION").into());
@@ -407,18 +429,6 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.set_click_through(settings.click_through);
     set_placeholder(&ui, "Your live captions appear here");
     ui.set_history(ModelRc::from(Rc::new(VecModel::<HistoryLine>::default())));
-    let defaults = KEYBOARD.default_shortcuts();
-    let rows: Vec<ShortcutRow> = ShortcutAction::ALL
-        .iter()
-        .map(|action| ShortcutRow {
-            title: action.title().into(),
-            keys: defaults
-                .get(*action)
-                .map_or("Not set".to_string(), |shortcut| shortcut.label(&KEYBOARD))
-                .into(),
-        })
-        .collect();
-    ui.set_shortcuts(ModelRc::new(VecModel::from(rows)));
     refresh(&ui);
 
     ui.on_model_chosen({
@@ -517,6 +527,245 @@ fn main() -> Result<(), slint::PlatformError> {
     ended
 }
 
+/// An overlay needs to stay on top and sit where it's put, and Wayland lets no app do either. The
+/// X11 layer that Wayland desktops carry does, so the app runs there. Returns whether this is a
+/// Wayland desktop, because shortcuts have to go through the desktop all the same.
+#[cfg(target_os = "linux")]
+fn leave_wayland() -> bool {
+    let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some_and(|name| !name.is_empty());
+    if wayland && std::env::var_os("DISPLAY").is_some() {
+        // SAFETY: this is the first thing the app does, before any other thread exists.
+        unsafe { std::env::remove_var("WAYLAND_DISPLAY") };
+    }
+    wayland
+}
+
+#[cfg(not(target_os = "linux"))]
+fn leave_wayland() -> bool {
+    false
+}
+
+fn run_action(ui: &MainWindow, action: ShortcutAction) {
+    match action {
+        ShortcutAction::ToggleCaptions => ui.invoke_toggle_captions(),
+        ShortcutAction::ToggleOverlay => toggle_overlay(ui),
+        ShortcutAction::ToggleExpanded => {
+            show_overlay(ui);
+            toggle_expanded(ui);
+        }
+        ShortcutAction::LargerText => change_size(ui, SIZE_STEP),
+        ShortcutAction::SmallerText => change_size(ui, -SIZE_STEP),
+        ShortcutAction::ToggleClickThrough => {
+            show_overlay(ui);
+            set_click_through(ui, !ui.get_click_through());
+        }
+        ShortcutAction::ResetOverlay => {
+            show_overlay(ui);
+            with_view(|view| view.overlay.reset());
+            with_view(|view| view.captions.set_expanded(false));
+            save(ui);
+        }
+    }
+}
+
+/// Runs a shortcut's action from whichever thread heard the key.
+fn firing(weak: Weak<MainWindow>) -> impl Fn(ShortcutAction) + Send + Sync + 'static {
+    move |action| {
+        let _ = weak.upgrade_in_event_loop(move |ui| run_action(&ui, action));
+    }
+}
+
+/// Shows the shortcuts as they stand, saying which ones another app has taken.
+fn show_shortcuts(ui: &MainWindow) {
+    let rows: Vec<ShortcutRow> = with_view(|view| {
+        let map = view.shortcuts.borrow();
+        let clashes = view.clashes.borrow();
+        ShortcutAction::ALL
+            .iter()
+            .map(|action| ShortcutRow {
+                title: action.title().into(),
+                keys: map
+                    .get(*action)
+                    .map_or("Not set".to_string(), |shortcut| shortcut.label(&KEYBOARD))
+                    .into(),
+                taken: clashes.contains(action),
+            })
+            .collect()
+    });
+    ui.set_shortcuts(ModelRc::new(VecModel::from(rows)));
+}
+
+fn bind_shortcuts(ui: &MainWindow) {
+    with_view(|view| {
+        if let Some(hotkeys) = &view.hotkeys {
+            let mut hotkeys = hotkeys.borrow_mut();
+            *view.clashes.borrow_mut() = hotkeys.bind(&view.shortcuts.borrow(), &KEYBOARD);
+            if !hotkeys.is_working() {
+                ui.set_shortcut_note("This desktop didn't allow global shortcuts.".into());
+            }
+        }
+    });
+    show_shortcuts(ui);
+}
+
+fn save_shortcuts(ui: &MainWindow) {
+    let data = with_view(|view| view.shortcuts.borrow().encoded());
+    let path = paths::shortcuts_file();
+    if let Some(folder) = path.parent() {
+        let _ = std::fs::create_dir_all(folder);
+    }
+    if let Err(error) = std::fs::write(path, data) {
+        ui.set_shortcut_note(error.to_string().into());
+    }
+}
+
+fn start_recording(ui: &MainWindow, row: i32) {
+    with_view(|view| {
+        if let Some(hotkeys) = &view.hotkeys {
+            hotkeys.borrow_mut().pause();
+        }
+    });
+    ui.set_shortcut_note("".into());
+    ui.set_recording(row);
+}
+
+/// Takes the keys pressed while recording. Modifiers alone keep it waiting for the real key.
+fn finish_recording(ui: &MainWindow, row: i32, key: &str, held: Held) {
+    let Some(key) = hotkeys::key_name(key) else {
+        return;
+    };
+    let action = ShortcutAction::ALL[row as usize];
+    let note = match KEYBOARD.shortcut(&key, held) {
+        None => Some(format!("{key} can't be used in a shortcut.")),
+        Some(shortcut) if !shortcut.is_allowed(&KEYBOARD) => Some(format!(
+            "Add Ctrl or Alt to {key}, or it couldn't be typed in other apps."
+        )),
+        Some(shortcut) => with_view(|view| {
+            let mut map = view.shortcuts.borrow_mut();
+            match map.action_using(&shortcut, Some(action)) {
+                Some(other) => Some(format!("That's already {}.", other.title())),
+                None => {
+                    map.set(Some(shortcut), action);
+                    None
+                }
+            }
+        }),
+    };
+    ui.set_recording(-1);
+    if let Some(note) = &note {
+        ui.set_shortcut_note(note.into());
+    } else {
+        save_shortcuts(ui);
+    }
+    bind_shortcuts(ui);
+}
+
+/// Shows that the desktop has the keys, then what it chose. It may first ask in its own dialog.
+#[cfg(target_os = "linux")]
+fn connect_portal(ui: &MainWindow) {
+    let weak = ui.as_weak();
+    ui.set_shortcuts_editable(false);
+    ui.set_shortcut_note("Your desktop manages these shortcuts.".into());
+    let map = with_view(|view| view.shortcuts.borrow().clone());
+    portal::connect(
+        map,
+        move |outcome| {
+            let _ = weak.upgrade_in_event_loop(move |ui| show_portal(&ui, outcome));
+        },
+        firing(ui.as_weak()),
+    );
+}
+
+#[cfg(target_os = "linux")]
+fn show_portal(ui: &MainWindow, outcome: portal::Outcome) {
+    match outcome {
+        Ok(keys) => {
+            let rows: Vec<ShortcutRow> = ShortcutAction::ALL
+                .iter()
+                .map(|action| ShortcutRow {
+                    title: action.title().into(),
+                    keys: keys
+                        .iter()
+                        .find(|(bound, _)| bound == action)
+                        .map_or("Not set", |(_, keys)| keys.as_str())
+                        .into(),
+                    taken: false,
+                })
+                .collect();
+            ui.set_shortcuts(ModelRc::new(VecModel::from(rows)));
+        }
+        Err(_) => ui.set_shortcut_note(
+            "This desktop doesn't offer global shortcuts. The buttons on the overlay still work."
+                .into(),
+        ),
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn connect_portal(_ui: &MainWindow) {}
+
+fn connect_shortcuts(ui: &MainWindow, on_wayland: bool) {
+    if on_wayland {
+        show_shortcuts(ui);
+        connect_portal(ui);
+    } else {
+        bind_shortcuts(ui);
+    }
+    ui.on_record_shortcut({
+        let weak = ui.as_weak();
+        move |row| {
+            if let Some(ui) = weak.upgrade() {
+                start_recording(&ui, row);
+            }
+        }
+    });
+    ui.on_shortcut_pressed({
+        let weak = ui.as_weak();
+        move |row, key, control, alt, shift, system| {
+            if let Some(ui) = weak.upgrade() {
+                let held = Held {
+                    control,
+                    alt,
+                    shift,
+                    system,
+                };
+                finish_recording(&ui, row, &key, held);
+            }
+        }
+    });
+    ui.on_cancel_recording({
+        let weak = ui.as_weak();
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                ui.set_recording(-1);
+                bind_shortcuts(&ui);
+            }
+        }
+    });
+    ui.on_clear_shortcut({
+        let weak = ui.as_weak();
+        move |row| {
+            if let Some(ui) = weak.upgrade() {
+                let action = ShortcutAction::ALL[row as usize];
+                with_view(|view| view.shortcuts.borrow_mut().set(None, action));
+                save_shortcuts(&ui);
+                bind_shortcuts(&ui);
+            }
+        }
+    });
+    ui.on_reset_shortcuts({
+        let weak = ui.as_weak();
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                with_view(|view| *view.shortcuts.borrow_mut() = KEYBOARD.default_shortcuts());
+                ui.set_shortcut_note("".into());
+                save_shortcuts(&ui);
+                bind_shortcuts(&ui);
+            }
+        }
+    });
+}
+
 fn export_history(ui: &MainWindow) {
     let lines = ui.get_history();
     let contents = export::text(&lines);
@@ -560,6 +809,36 @@ mod snapshot {
     use slint::{Timer, TimerMode};
     use std::time::Duration;
 
+    fn perform(ui: &MainWindow, script: &str) {
+        use slint::LogicalPosition;
+        use slint::platform::{Key, PointerEventButton, WindowEvent};
+        let window = ui.window();
+        for step in script.split(';') {
+            let words: Vec<&str> = step.split_whitespace().collect();
+            match words[..] {
+                ["click", x, y] => {
+                    let position =
+                        LogicalPosition::new(x.parse().unwrap_or(0.0), y.parse().unwrap_or(0.0));
+                    let button = PointerEventButton::Left;
+                    window.dispatch_event(WindowEvent::PointerMoved { position });
+                    window.dispatch_event(WindowEvent::PointerPressed { position, button });
+                    window.dispatch_event(WindowEvent::PointerReleased { position, button });
+                }
+                ["key", name] => {
+                    let text: slint::SharedString = match name {
+                        "F9" => Key::F9.into(),
+                        "Control" => Key::Control.into(),
+                        "Escape" => Key::Escape.into(),
+                        text => text.into(),
+                    };
+                    window.dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
+                    window.dispatch_event(WindowEvent::KeyReleased { text });
+                }
+                _ => {}
+            }
+        }
+    }
+
     pub fn schedule(ui: &MainWindow) {
         let Ok(path) = std::env::var("SOUNDVEIL_SNAPSHOT") else {
             return;
@@ -572,6 +851,15 @@ mod snapshot {
         }
         if std::env::var_os("SOUNDVEIL_AUTOSTART").is_some() {
             ui.invoke_toggle_captions();
+        }
+        // Clicks and types as a person would: "click 577 576; key F9" a second after opening.
+        if let Ok(script) = std::env::var("SOUNDVEIL_SCRIPT") {
+            let weak = ui.as_weak();
+            Timer::single_shot(Duration::from_secs(1), move || {
+                if let Some(ui) = weak.upgrade() {
+                    perform(&ui, &script);
+                }
+            });
         }
         // Points at the overlay and optionally expands it, once the window exists.
         if let Ok(at) = std::env::var("SOUNDVEIL_HOVER_AT").map(|at| at.parse().unwrap_or(1.0)) {

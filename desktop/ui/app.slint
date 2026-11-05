@@ -12,6 +12,8 @@ export struct HistoryLine {
 export struct ShortcutRow {
     title: string,
     keys: string,
+    // Another app already has these keys.
+    taken: bool,
 }
 
 global Theme {
@@ -356,12 +358,35 @@ component SettingsPage inherits ScrollView {
     in property <[string]> speed-titles;
     in property <string> speed-detail;
     in property <[ShortcutRow]> shortcuts;
+    in property <bool> shortcuts-editable;
+    in property <string> shortcut-note;
+    in property <int> recording;
     in property <string> version;
     in-out property <int> speed-index;
     in-out property <bool> highlight;
     in-out property <bool> click-through;
     callback speed-chosen(int);
     callback settings-changed();
+    callback record-shortcut(int);
+    callback shortcut-pressed(int, string, bool, bool, bool, bool);
+    callback cancel-recording();
+    callback clear-shortcut(int);
+    callback reset-shortcuts();
+
+    // Takes the keyboard while a shortcut is being recorded.
+    listener := FocusScope {
+        width: 0;
+        height: 0;
+        enabled: root.recording >= 0;
+        key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.cancel-recording();
+            } else {
+                root.shortcut-pressed(root.recording, event.text, event.modifiers.control, event.modifiers.alt, event.modifiers.shift, event.modifiers.meta);
+            }
+            accept
+        }
+    }
 
     VerticalLayout {
         spacing: Theme.page-gap;
@@ -418,22 +443,64 @@ component SettingsPage inherits ScrollView {
                 text: "Keyboard shortcuts";
             }
 
-            for row in root.shortcuts: HorizontalLayout {
+            for row[index] in root.shortcuts: HorizontalLayout {
+                spacing: 8px;
                 Text {
                     text: row.title;
                     font-size: 13px;
                     color: Palette.foreground;
+                    vertical-alignment: center;
                     horizontal-stretch: 1;
                 }
 
+                if row.taken: Text {
+                    text: "Used by another app";
+                    font-size: 12px;
+                    color: Theme.accent;
+                    vertical-alignment: center;
+                }
                 Text {
-                    text: row.keys;
+                    text: root.recording == index ? "Press keys…" : row.keys;
                     font-size: 13px;
                     color: Palette.foreground.with-alpha(0.62);
+                    vertical-alignment: center;
+                }
+
+                if root.shortcuts-editable: Button {
+                    text: root.recording == index ? "Cancel" : "Change";
+                    enabled: root.recording < 0 || root.recording == index;
+                    clicked => {
+                        if root.recording == index {
+                            root.cancel-recording();
+                        } else {
+                            root.record-shortcut(index);
+                            listener.focus();
+                        }
+                    }
+                }
+                if root.shortcuts-editable: Button {
+                    text: "Clear";
+                    enabled: root.recording < 0 && row.keys != "Not set";
+                    clicked => {
+                        root.clear-shortcut(index);
+                    }
                 }
             }
-            Note {
-                text: "These work in every app, including while your browser is in front.";
+            HorizontalLayout {
+                spacing: 8px;
+                Note {
+                    text: root.shortcut-note != "" ? root.shortcut-note : "These work in every app, including while your browser is in front.";
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                if root.shortcuts-editable: Button {
+                    text: "Reset shortcuts";
+                    enabled: root.recording < 0;
+                    clicked => {
+                        root.reset-shortcuts();
+                    }
+                }
             }
         }
 
@@ -484,9 +551,17 @@ export component MainWindow inherits Window {
     in-out property <bool> highlight: true;
     in-out property <bool> click-through;
     in property <bool> overlay-shown;
+    in property <bool> shortcuts-editable: true;
+    in property <string> shortcut-note;
+    in-out property <int> recording: -1;
     callback toggle-captions();
     callback toggle-overlay();
     callback export-history();
+    callback record-shortcut(int);
+    callback shortcut-pressed(int, string, bool, bool, bool, bool);
+    callback cancel-recording();
+    callback clear-shortcut(int);
+    callback reset-shortcuts();
     callback model-chosen(int);
     callback speed-chosen(int);
     callback download-model();
@@ -592,6 +667,24 @@ export component MainWindow inherits Window {
             speed-detail: root.speed-detail;
             speed-index <=> root.speed-index;
             shortcuts: root.shortcuts;
+            shortcuts-editable: root.shortcuts-editable;
+            shortcut-note: root.shortcut-note;
+            recording: root.recording;
+            record-shortcut(row) => {
+                root.record-shortcut(row);
+            }
+            shortcut-pressed(row, key, control, alt, shift, system) => {
+                root.shortcut-pressed(row, key, control, alt, shift, system);
+            }
+            cancel-recording => {
+                root.cancel-recording();
+            }
+            clear-shortcut(row) => {
+                root.clear-shortcut(row);
+            }
+            reset-shortcuts => {
+                root.reset-shortcuts();
+            }
             version: root.version;
             highlight <=> root.highlight;
             click-through <=> root.click-through;

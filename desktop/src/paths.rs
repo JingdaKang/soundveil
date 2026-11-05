@@ -39,6 +39,10 @@ pub fn model_file(model: Model) -> PathBuf {
     models().join(model.file_name())
 }
 
+pub fn shortcuts_file() -> PathBuf {
+    data_folder().join("shortcuts.json")
+}
+
 pub fn settings_file() -> PathBuf {
     data_folder().join("settings.json")
 }
