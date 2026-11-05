@@ -1,0 +1,69 @@
+name: Package
+
+# Builds the Windows installer and the Linux packages, with GPU recognition. They are kept as this
+# run's artifacts. Publishing a release stays a separate, deliberate step.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "desktop/packaging/**"
+      - ".github/workflows/package.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: humbletim/install-vulkan-sdk@v1.2
+        with:
+          version: latest
+          cache: true
+      - run: ../core/scripts/fetch-whisper.sh
+      - run: cargo build --release --features vulkan
+      - run: choco install innosetup -y --no-progress
+      - name: Build the installer
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          cp "$VULKAN_SDK/Bin/vulkan-1.dll" target/release/ || cp /c/Windows/System32/vulkan-1.dll target/release/
+          "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
+            "//DAppVersion=$version" "//DBinaryDir=$(cygpath -w "$PWD/target/release")" \
+            packaging/windows/soundveil.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: desktop/packaging/windows/output/*.exe
+
+  linux:
+    name: Linux packages
+    # The oldest supported runner, because the program won't start on a system older than this.
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install what the build needs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpulse-dev libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libvulkan-dev glslc
+      - run: ../core/scripts/fetch-whisper.sh
+      - run: cargo build --release --features vulkan
+      - run: ./packaging/linux/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: |
+            desktop/target/package/*.deb
+            desktop/target/package/*.tar.gz
