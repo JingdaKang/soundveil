@@ -1,5 +1,21 @@
 # Validation — 3 November 2026
 
+## Release 0.1.2 — 7 November 2026
+
+- Fixes the main window. `Settings` was declared first, so a clean launch opened only Settings, and
+  a saved Settings window stopped the main one opening. Run as a clean first launch, the 0.1.1 app
+  from Applications opened only Settings, under a test bundle id.
+- With the fix, under a test bundle id: the main window opened on a clean launch and with only
+  Settings saved. A reopen event, as a Dock click sends, brought it back with Settings open and with
+  no windows open, and repeating that left one main window. Closing every window left the app running.
+- Published `v0.1.2` with `release.sh` from this Mac. No GitHub workflow ran.
+- The downloaded disk image matched its checksum and held a validly signed 0.1.2. Copied out of the
+  image, it opened the main window on a clean launch.
+- All 70 unit tests pass.
+
+Not checked: captions in this build, recording permission after updating, and the disk image on
+another Mac.
+
 ## Release 0.1.1 — 4 November 2026
 
 - Published `v0.1.1` with `release.sh`. The latest-release API returned it, and the uploaded
