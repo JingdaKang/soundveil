@@ -10,6 +10,7 @@ parts of the project relate.
 - `Sources/CaptionCore`: pure speech gate, rolling transcriber, word layout, and expressive word logic.
 - `Sources/WhisperEngine`: Swift wrapper over the bridge for rolling decode jobs.
 - `Sources/ShortcutCore`: pure shortcut actions, validation, and storage.
+- `Sources/OverlayCore`: pure caption styles, contrast checks, and overlay resize geometry.
 - `Sources/UpdateCore`: pure release-version parsing and GitHub release decoding.
 - `Sources/CWhisperBridge`: C interface to the pinned whisper.cpp dependency.
 - `Sources/SmokeCheck`: offline native transcription check.
@@ -17,6 +18,7 @@ parts of the project relate.
 - `Tests/CaptionCoreTests`: pipeline unit tests.
 - `Tests/UpdateCoreTests`: update-check unit tests.
 - `Tests/ShortcutCoreTests`: shortcut unit tests.
+- `Tests/OverlayCoreTests`: caption style and overlay resize unit tests.
 
 ## Build and validation
 
@@ -44,3 +46,8 @@ Check any change to them with StreamCheck against a reference transcript. In par
 keep the audio context the same for every pass, do not pass a prompt to Whisper, and do
 not cut audio on its word timestamps. Keep highlighting sparing: only add a word to the
 lists in `Expressive.swift` if it is rarely ordinary dialogue.
+
+The overlay panel never takes focus while captions run behind Chrome, so SwiftUI hover and
+system tooltips don't work there: use tracking areas, and label controls on the overlay itself.
+Don't cover the panel with a view that sets `mouseDownCanMoveWindow` to false. AppKit won't drag
+the window from anywhere such a view sits, even if the view declines the click.
