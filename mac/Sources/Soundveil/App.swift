@@ -275,8 +275,8 @@ struct ContentView: View {
  }
 }
 // SwiftUI skips the main window when macOS has any saved window to restore, even just Settings, and
-// a Dock click does nothing while Settings is open. Either would leave the app with no way to start
-// captions, so the main window is opened here. Opening it when it's already open only raises it.
+// a Dock click does nothing while Settings is open. Either would leave only Settings on screen, so
+// the main window is opened here. Opening it when it's already open only raises it.
 final class AppDelegate: NSObject, NSApplicationDelegate {
  var showMainWindow: () -> Void = {}
  func applicationDidFinishLaunching(_ notification: Notification) {
