@@ -13,6 +13,7 @@ mod feed;
 mod hotkeys;
 mod overlay;
 mod paths;
+mod pointer;
 #[cfg(target_os = "linux")]
 mod portal;
 mod settings;
@@ -811,7 +812,8 @@ fn connect_overlay(ui: &MainWindow) {
         window.on_smaller(act(handle(), |ui| change_size(ui, -SIZE_STEP)));
         window.on_larger(act(handle(), |ui| change_size(ui, SIZE_STEP)));
         window.on_toggle_expanded(act(handle(), toggle_expanded));
-        window.on_click_through(act(handle(), |ui| set_click_through(ui, true)));
+        window.on_let_clicks_through(act(handle(), |ui| set_click_through(ui, true)));
+        window.on_turn_off_click_through(act(handle(), |ui| set_click_through(ui, false)));
         window.on_hide_overlay(act(handle(), hide_overlay));
         window.on_move_window(|| with_view(|view| view.overlay.start_move()));
         window.on_resize_window(|edges| {

@@ -430,7 +430,7 @@ component SettingsPage inherits ScrollView {
 
             SwitchRow {
                 title: "Click through overlay";
-                note: "Clicks pass to whatever is behind the overlay. It can't be dragged or show its controls until this is off.";
+                note: "Clicks go to whatever is behind the overlay, so you can use video controls under it. To turn this off, point at the overlay and choose Turn off click-through, or use the shortcut.";
                 checked <=> root.click-through;
                 toggled => {
                     root.settings-changed();

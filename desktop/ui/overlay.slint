@@ -84,6 +84,50 @@ component EdgeHandles {
     }
 }
 
+// While clicks pass through, this is the one spot on the overlay that still takes one.
+component ClickThroughBadge {
+    callback clicked <=> touch.clicked;
+    accessible-role: button;
+    accessible-label: "Turn off click-through";
+    accessible-action-default => {
+        touch.clicked();
+    }
+    Rectangle {
+        border-radius: self.height / 2;
+        background: #000000b8;
+        border-width: 1px;
+        border-color: #ffffff24;
+    }
+
+    HorizontalLayout {
+        alignment: center;
+        spacing: 6px;
+        Path {
+            width: 14px;
+            height: 14px;
+            y: (parent.height - self.height) / 2;
+            viewbox-width: 14;
+            viewbox-height: 14;
+            commands: "M 3 2 L 3 11 L 5.6 8.8 L 7.4 12.6 L 9.2 11.8 L 7.4 8.1 L 10.8 8 Z";
+            stroke: white;
+            stroke-width: 1.4px;
+            fill: transparent;
+        }
+
+        Text {
+            text: "Turn off click-through";
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
 // The captions, floating over everything else. The window itself is clear, so only the rounded
 // panel shows. Controls appear on hover, which keeps the default view to nothing but text.
 export component CaptionOverlay inherits Window {
@@ -99,10 +143,17 @@ export component CaptionOverlay inherits Window {
     in property <string> placeholder;
     in property <float> size-points: 28;
     in property <bool> expanded;
+    in property <bool> click-through;
+    // The window can't hear the pointer while clicks pass through, so this is reported to it.
+    in property <bool> pointer-inside;
+    out property <length> badge-width: 182px;
+    out property <length> badge-height: 30px;
+    out property <length> badge-margin: root.inset + 7px;
     callback smaller();
     callback larger();
     callback toggle-expanded();
-    callback click-through();
+    callback let-clicks-through();
+    callback turn-off-click-through();
     callback hide-overlay();
     callback move-window();
     // Sides are bits: 1 left, 2 right, 4 bottom, 8 top. The Rust side decides which apply.
@@ -111,14 +162,17 @@ export component CaptionOverlay inherits Window {
 
     property <length> inset: 6px;
     property <bool> quiet: root.words.length == 0 && root.placeholder == "";
+    property <bool> hovering: root.click-through ? root.pointer-inside : drag.has-hover;
+    property <bool> show-controls: root.hovering && !root.click-through;
     // A tooltip may not show on a window without focus, so the buttons name themselves.
-    property <string> hint: smaller.pointed-at ? smaller.label : larger.pointed-at ? larger.label : expand.pointed-at ? expand.label : pass.pointed-at ? pass.label : close.pointed-at ? close.label : "";
+    property <string> hint: !root.show-controls ? "" : smaller.pointed-at ? smaller.label : larger.pointed-at ? larger.label : expand.pointed-at ? expand.label : pass.pointed-at ? pass.label : close.pointed-at ? close.label : "";
     property <int> edges: drag.has-hover ? root.edges-at(drag.mouse-x, drag.mouse-y, root.width, root.height) : 0;
 
     // The rest sits inside this area, because it only counts as hovered while the pointer is on it
     // or on something inside it. As a sibling behind the controls, it would lose the pointer to
     // them and take them away.
     drag := TouchArea {
+        enabled: !root.click-through;
         mouse-cursor: root.edges == 1 || root.edges == 2 ? MouseCursor.ew-resize : root.edges == 4 || root.edges == 8 ? MouseCursor.ns-resize : root.edges == 9 || root.edges == 6 ? MouseCursor.nwse-resize : root.edges == 10 || root.edges == 5 ? MouseCursor.nesw-resize : MouseCursor.default;
         pointer-event(event) => {
             if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
@@ -136,7 +190,7 @@ export component CaptionOverlay inherits Window {
             width: root.width - root.inset * 2;
             height: root.height - root.inset * 2;
             border-radius: 16px;
-            background: root.quiet && !drag.has-hover ? #0000000d : #000000c7;
+            background: root.quiet && !root.hovering ? #0000000d : #000000c7;
             animate background { duration: 140ms; }
 
             CaptionWords {
@@ -153,7 +207,7 @@ export component CaptionOverlay inherits Window {
                 width: parent.width;
                 height: parent.height;
                 ink: CaptionLook.text.with-alpha(0.45);
-                opacity: drag.has-hover ? 1 : 0;
+                opacity: root.show-controls ? 1 : 0;
                 animate opacity { duration: 140ms; }
             }
         }
@@ -167,7 +221,7 @@ export component CaptionOverlay inherits Window {
             background: #000000b8;
             border-width: 1px;
             border-color: #ffffff24;
-            opacity: drag.has-hover ? 1 : 0;
+            opacity: root.show-controls ? 1 : 0;
             visible: self.opacity > 0;
             animate opacity { duration: 140ms; }
 
@@ -206,7 +260,7 @@ export component CaptionOverlay inherits Window {
                     label: "Let clicks pass through";
                     icon: "M 3 2 L 3 11 L 5.6 8.8 L 7.4 12.6 L 9.2 11.8 L 7.4 8.1 L 10.8 8 Z";
                     clicked => {
-                        root.click-through();
+                        root.let-clicks-through();
                     }
                 }
 
@@ -246,8 +300,18 @@ export component CaptionOverlay inherits Window {
             stroke: CaptionLook.text.with-alpha(0.55);
             stroke-width: 1.6px;
             fill: transparent;
-            opacity: drag.has-hover ? 1 : 0;
+            opacity: root.show-controls ? 1 : 0;
             animate opacity { duration: 140ms; }
+        }
+
+        if root.click-through && root.hovering: ClickThroughBadge {
+            x: root.width - self.width - root.badge-margin;
+            y: root.badge-margin;
+            width: root.badge-width;
+            height: root.badge-height;
+            clicked => {
+                root.turn-off-click-through();
+            }
         }
     }
 }

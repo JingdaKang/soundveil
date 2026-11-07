@@ -4405,6 +4405,7 @@ dependencies = [
  "ureq",
  "windows",
  "winresource",
+ "x11rb",
 ]
 
 [[package]]

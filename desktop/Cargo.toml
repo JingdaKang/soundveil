@@ -38,6 +38,7 @@ futures-util = "0.3"
 pollster = "0.4"
 libpulse-binding = "2"
 libpulse-simple-binding = "2"
+x11rb = { version = "0.13", default-features = false }
 
 [build-dependencies]
 slint-build = "1.18"

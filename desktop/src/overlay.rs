@@ -4,13 +4,15 @@
 //! The drawing is Slint's, in `ui/overlay.slint`. What Slint has no words for, such as moving the
 //! window by its background, goes straight to winit, which Slint runs on.
 
-use crate::CaptionOverlay;
 use crate::settings::Frame;
+use crate::{CaptionOverlay, pointer};
 use slint::winit_030::winit::dpi::PhysicalSize;
-use slint::winit_030::winit::event::WindowEvent as NativeEvent;
+use slint::winit_030::winit::event::{
+    ElementState, MouseButton, WindowEvent as NativeEvent,
+};
 use slint::winit_030::winit::window::{ResizeDirection, Window as NativeWindow};
 use slint::winit_030::{EventResult, WinitWindowAccessor, winit};
-use slint::{ComponentHandle, LogicalSize, PhysicalPosition, Timer, TimerMode};
+use slint::{ComponentHandle, LogicalPosition, LogicalSize, PhysicalPosition, Timer, TimerMode};
 use soundveil_core::ResizeEdges;
 use std::cell::Cell;
 use std::rc::Rc;
@@ -20,6 +22,7 @@ const WIDTH: f32 = 850.0;
 const HEIGHT: f32 = 156.0;
 const FROM_BOTTOM: f32 = 65.0;
 const SAVE_AFTER: Duration = Duration::from_millis(500);
+const WATCH_POINTER_EVERY: Duration = Duration::from_millis(100);
 
 thread_local! {
     static CREATING: Cell<bool> = const { Cell::new(false) };
@@ -82,6 +85,34 @@ fn refuse_focus(window: &NativeWindow) {
 
 #[cfg(not(windows))]
 fn refuse_focus(_window: &NativeWindow) {}
+
+/// Where the pointer is on the window, in logical pixels from its top left.
+fn place_on_window(
+    pointer: winit::dpi::PhysicalPosition<f64>,
+    window: PhysicalPosition,
+    scale: f32,
+) -> LogicalPosition {
+    LogicalPosition::new(
+        ((pointer.x - f64::from(window.x)) as f32) / scale,
+        ((pointer.y - f64::from(window.y)) as f32) / scale,
+    )
+}
+
+/// The one spot that still takes a click while clicks pass through, at the window's top right.
+#[derive(Clone, Copy, Debug)]
+struct Badge {
+    width: f32,
+    height: f32,
+    margin: f32,
+}
+
+impl Badge {
+    fn contains(&self, point: LogicalPosition, window_width: f32) -> bool {
+        let left = window_width - self.margin - self.width;
+        (left..left + self.width).contains(&point.x)
+            && (self.margin..self.margin + self.height).contains(&point.y)
+    }
+}
 
 /// The way a drag from these sides pulls the window. Nothing means the drag isn't a resize.
 fn resize_direction(edges: ResizeEdges) -> Option<ResizeDirection> {
@@ -174,6 +205,9 @@ pub struct Overlay {
     compact_height: Cell<f32>,
     prepared: Cell<bool>,
     saving: Timer,
+    /// Runs only while clicks pass through.
+    watching: Timer,
+    takes_clicks: Cell<bool>,
 }
 
 impl Overlay {
@@ -181,14 +215,18 @@ impl Overlay {
         CREATING.set(true);
         let window = CaptionOverlay::new();
         CREATING.set(false);
+        let window = window?;
+        window.set_click_through(click_through);
         Ok(Rc::new(Self {
-            window: window?,
+            window,
             frame: Cell::new(frame),
             click_through: Cell::new(click_through),
             expanded: Cell::new(false),
             compact_height: Cell::new(HEIGHT),
             prepared: Cell::new(false),
             saving: Timer::default(),
+            watching: Timer::default(),
+            takes_clicks: Cell::new(true),
         }))
     }
 
@@ -244,8 +282,7 @@ impl Overlay {
             let Ok(native) = window.window().winit_window().await else {
                 return;
             };
-            refuse_focus(&native);
-            native.set_cursor_hittest(!this.click_through.get()).ok();
+            this.watch_pointer();
             let scale = native.scale_factor() as f32;
             let lost = this
                 .frame
@@ -261,12 +298,28 @@ impl Overlay {
                 let events = this.clone();
                 let changed = on_change.clone();
                 window.window().on_winit_window_event(move |_, event| {
-                    if matches!(event, NativeEvent::Moved(_) | NativeEvent::Resized(_)) {
-                        let this = events.clone();
-                        let changed = changed.clone();
-                        events.saving.start(TimerMode::SingleShot, SAVE_AFTER, move || {
-                            this.remember(&*changed);
-                        });
+                    match event {
+                        NativeEvent::Moved(_) | NativeEvent::Resized(_) => {
+                            let this = events.clone();
+                            let changed = changed.clone();
+                            events
+                                .saving
+                                .start(TimerMode::SingleShot, SAVE_AFTER, move || {
+                                    this.remember(&*changed);
+                                });
+                        }
+                        // Clicks only land on the badge now. Slint can't be trusted with this one,
+                        // because it only knows where a pointer is from watching it move, and the
+                        // pointer may have stopped before the badge began taking clicks.
+                        NativeEvent::MouseInput {
+                            state: ElementState::Pressed,
+                            button: MouseButton::Left,
+                            ..
+                        } if events.click_through.get() => {
+                            events.window.invoke_turn_off_click_through();
+                            return EventResult::PreventDefault;
+                        }
+                        _ => {}
                     }
                     EventResult::Propagate
                 });
@@ -275,14 +328,88 @@ impl Overlay {
         let _ = slint::spawn_local(setup);
     }
 
-    pub fn hide(&self) {
+    pub fn hide(self: &Rc<Self>) {
         let _ = self.window.hide();
+        self.watch_pointer();
     }
 
-    pub fn set_click_through(&self, on: bool) {
-        self.click_through.set(on);
-        self.with_native(|native| native.set_cursor_hittest(!on).ok());
+    pub fn set_click_through(self: &Rc<Self>, on: bool) {
+        if self.click_through.replace(on) == on {
+            return;
+        }
+        self.window.set_click_through(on);
         self.forget_pointer();
+        self.watch_pointer();
+    }
+
+    /// winit rebuilds the window's styles here, which on Windows drops the ones that keep focus
+    /// away, so they go back on after every change.
+    fn take_clicks(&self, on: bool) {
+        self.takes_clicks.set(on);
+        self.with_native(|native| {
+            native.set_cursor_hittest(on).ok();
+            refuse_focus(native);
+        });
+    }
+
+    /// A window that clicks pass through can't see the pointer either, so it's polled, and only
+    /// while that's on and the window is showing.
+    fn watch_pointer(self: &Rc<Self>) {
+        let on = self.click_through.get();
+        if self.is_visible() {
+            self.take_clicks(!on);
+        }
+        if on && self.is_visible() {
+            let this = Rc::downgrade(self);
+            self.watching
+                .start(TimerMode::Repeated, WATCH_POINTER_EVERY, move || {
+                    if let Some(this) = this.upgrade() {
+                        this.follow_pointer();
+                    }
+                });
+            self.follow_pointer();
+            return;
+        }
+        self.watching.stop();
+        self.window.set_pointer_inside(false);
+        // The pointer may be sitting on the window, so its controls come back without a nudge.
+        if self.is_visible()
+            && let Some(position) = self.pointer_on_window()
+        {
+            self.window
+                .window()
+                .dispatch_event(slint::platform::WindowEvent::PointerMoved { position });
+        }
+    }
+
+    fn pointer_on_window(&self) -> Option<LogicalPosition> {
+        let window = self.window.window();
+        let scale = window.scale_factor();
+        let size = window.size().to_logical(scale);
+        let pointer = self.with_native(pointer::location).flatten()?;
+        let place = place_on_window(pointer, window.position(), scale);
+        let inside = (0.0..size.width).contains(&place.x) && (0.0..size.height).contains(&place.y);
+        inside.then_some(place)
+    }
+
+    /// Clicks land only while the pointer is on the badge, and pass through everywhere else.
+    fn follow_pointer(&self) {
+        let place = self.pointer_on_window();
+        self.window.set_pointer_inside(place.is_some());
+        let badge = Badge {
+            width: self.window.get_badge_width(),
+            height: self.window.get_badge_height(),
+            margin: self.window.get_badge_margin(),
+        };
+        let scale = self.window.window().scale_factor();
+        let width = self.window.window().size().to_logical(scale).width;
+        let on_badge = place.is_some_and(|place| badge.contains(place, width));
+        if on_badge != self.takes_clicks.get() {
+            self.take_clicks(on_badge);
+            if !on_badge {
+                self.forget_pointer();
+            }
+        }
     }
 
     pub fn start_move(&self) {
@@ -361,6 +488,49 @@ mod tests {
         width: 1920,
         height: 1080,
     };
+
+    const BADGE: Badge = Badge {
+        width: 182.0,
+        height: 30.0,
+        margin: 13.0,
+    };
+
+    #[test]
+    fn the_badge_sits_at_the_top_right() {
+        let point = |x, y| LogicalPosition::new(x, y);
+        assert!(BADGE.contains(point(655.0, 13.0), 850.0));
+        assert!(BADGE.contains(point(836.9, 42.9), 850.0));
+    }
+
+    #[test]
+    fn clicks_pass_through_everywhere_around_the_badge() {
+        let point = |x, y| LogicalPosition::new(x, y);
+        assert!(!BADGE.contains(point(654.9, 20.0), 850.0));
+        assert!(!BADGE.contains(point(837.0, 20.0), 850.0));
+        assert!(!BADGE.contains(point(700.0, 12.9), 850.0));
+        assert!(!BADGE.contains(point(700.0, 43.0), 850.0));
+        assert!(!BADGE.contains(point(100.0, 100.0), 850.0));
+    }
+
+    #[test]
+    fn the_badge_follows_the_right_edge_of_a_resized_window() {
+        assert!(BADGE.contains(LogicalPosition::new(310.0, 20.0), 500.0));
+        assert!(!BADGE.contains(LogicalPosition::new(655.0, 20.0), 500.0));
+    }
+
+    #[test]
+    fn the_pointer_is_placed_in_logical_pixels_from_the_window() {
+        let pointer = winit::dpi::PhysicalPosition::new(1300.0, 700.0);
+        let place = place_on_window(pointer, PhysicalPosition::new(100, 100), 2.0);
+        assert_eq!((place.x, place.y), (600.0, 300.0));
+    }
+
+    #[test]
+    fn a_window_on_a_screen_left_of_the_main_one_is_placed_right() {
+        let pointer = winit::dpi::PhysicalPosition::new(-1000.0, -200.0);
+        let place = place_on_window(pointer, PhysicalPosition::new(-1500, -300), 1.0);
+        assert_eq!((place.x, place.y), (500.0, 100.0));
+    }
 
     #[test]
     fn each_side_and_corner_pulls_its_own_way() {
