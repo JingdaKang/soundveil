@@ -66,120 +66,123 @@ export component CaptionOverlay inherits Window {
     property <length> inset: 6px;
     property <bool> quiet: root.words.length == 0 && root.placeholder == "";
 
+    // The rest sits inside this area, because it only counts as hovered while the pointer is on it
+    // or on something inside it. As a sibling behind the controls, it would lose the pointer to
+    // them and take them away.
     drag := TouchArea {
         pointer-event(event) => {
             if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
                 root.move-window();
             }
         }
-    }
 
-    panel := Rectangle {
-        x: root.inset;
-        y: root.inset;
-        width: root.width - root.inset * 2;
-        height: root.height - root.inset * 2;
-        border-radius: 16px;
-        background: root.quiet && !drag.has-hover ? #0000000d : #000000c7;
-        animate background { duration: 140ms; }
+        panel := Rectangle {
+            x: root.inset;
+            y: root.inset;
+            width: root.width - root.inset * 2;
+            height: root.height - root.inset * 2;
+            border-radius: 16px;
+            background: root.quiet && !drag.has-hover ? #0000000d : #000000c7;
+            animate background { duration: 140ms; }
 
-        CaptionWords {
-            x: 22px;
-            y: 14px;
-            width: parent.width - 44px;
-            height: parent.height - 28px;
-            words: root.words;
-            placeholder: root.placeholder;
-            size: root.size-points;
-        }
-    }
-
-    Rectangle {
-        x: root.width - self.width - root.inset - 7px;
-        y: root.inset + 7px;
-        width: buttons.preferred-width + 6px;
-        height: 28px;
-        border-radius: 14px;
-        background: #000000b8;
-        border-width: 1px;
-        border-color: #ffffff24;
-        opacity: drag.has-hover ? 1 : 0;
-        visible: self.opacity > 0;
-        animate opacity { duration: 140ms; }
-
-        buttons := HorizontalLayout {
-            padding-left: 3px;
-            padding-right: 3px;
-            padding-top: 1px;
-            padding-bottom: 1px;
-            ControlButton {
-                label: "Smaller text";
-                glyph: "A";
-                glyph-size: 11;
-                clicked => {
-                    root.smaller();
-                }
-            }
-
-            ControlButton {
-                label: "Larger text";
-                glyph: "A";
-                glyph-size: 16;
-                clicked => {
-                    root.larger();
-                }
-            }
-
-            ControlButton {
-                label: root.expanded ? "Collapse" : "Expand";
-                icon: root.expanded ? "M 1 13 L 5.5 8.5 M 5.5 13 L 5.5 8.5 L 1 8.5 M 13 1 L 8.5 5.5 M 8.5 1 L 8.5 5.5 L 13 5.5" : "M 5.5 8.5 L 1 13 M 1 8.5 L 1 13 L 5.5 13 M 8.5 5.5 L 13 1 M 8.5 1 L 13 1 L 13 5.5";
-                clicked => {
-                    root.toggle-expanded();
-                }
-            }
-
-            ControlButton {
-                label: "Click through overlay";
-                icon: "M 3 2 L 3 11 L 5.6 8.8 L 7.4 12.6 L 9.2 11.8 L 7.4 8.1 L 10.8 8 Z";
-                clicked => {
-                    root.click-through();
-                }
-            }
-
-            ControlButton {
-                label: "Hide captions";
-                icon: "M 2.5 2.5 L 11.5 11.5 M 11.5 2.5 L 2.5 11.5";
-                clicked => {
-                    root.hide-overlay();
-                }
+            CaptionWords {
+                x: 22px;
+                y: 14px;
+                width: parent.width - 44px;
+                height: parent.height - 28px;
+                words: root.words;
+                placeholder: root.placeholder;
+                size: root.size-points;
             }
         }
-    }
 
-    Path {
-        x: root.width - 26px - root.inset;
-        y: root.height - 26px - root.inset;
-        width: 22px;
-        height: 22px;
-        viewbox-width: 22;
-        viewbox-height: 22;
-        commands: "M 20 8 L 8 20 M 20 13 L 13 20 M 20 18 L 18 20";
-        stroke: #ffffff8c;
-        stroke-width: 1.6px;
-        fill: transparent;
-        opacity: drag.has-hover ? 1 : 0;
-        animate opacity { duration: 140ms; }
-    }
+        Rectangle {
+            x: root.width - self.width - root.inset - 7px;
+            y: root.inset + 7px;
+            width: buttons.preferred-width + 6px;
+            height: 28px;
+            border-radius: 14px;
+            background: #000000b8;
+            border-width: 1px;
+            border-color: #ffffff24;
+            opacity: drag.has-hover ? 1 : 0;
+            visible: self.opacity > 0;
+            animate opacity { duration: 140ms; }
 
-    TouchArea {
-        x: root.width - 30px - root.inset;
-        y: root.height - 30px - root.inset;
-        width: 30px;
-        height: 30px;
-        mouse-cursor: nwse-resize;
-        pointer-event(event) => {
-            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
-                root.resize-window();
+            buttons := HorizontalLayout {
+                padding-left: 3px;
+                padding-right: 3px;
+                padding-top: 1px;
+                padding-bottom: 1px;
+                ControlButton {
+                    label: "Smaller text";
+                    glyph: "A";
+                    glyph-size: 11;
+                    clicked => {
+                        root.smaller();
+                    }
+                }
+
+                ControlButton {
+                    label: "Larger text";
+                    glyph: "A";
+                    glyph-size: 16;
+                    clicked => {
+                        root.larger();
+                    }
+                }
+
+                ControlButton {
+                    label: root.expanded ? "Collapse" : "Expand";
+                    icon: root.expanded ? "M 1 13 L 5.5 8.5 M 5.5 13 L 5.5 8.5 L 1 8.5 M 13 1 L 8.5 5.5 M 8.5 1 L 8.5 5.5 L 13 5.5" : "M 5.5 8.5 L 1 13 M 1 8.5 L 1 13 L 5.5 13 M 8.5 5.5 L 13 1 M 8.5 1 L 13 1 L 13 5.5";
+                    clicked => {
+                        root.toggle-expanded();
+                    }
+                }
+
+                ControlButton {
+                    label: "Click through overlay";
+                    icon: "M 3 2 L 3 11 L 5.6 8.8 L 7.4 12.6 L 9.2 11.8 L 7.4 8.1 L 10.8 8 Z";
+                    clicked => {
+                        root.click-through();
+                    }
+                }
+
+                ControlButton {
+                    label: "Hide captions";
+                    icon: "M 2.5 2.5 L 11.5 11.5 M 11.5 2.5 L 2.5 11.5";
+                    clicked => {
+                        root.hide-overlay();
+                    }
+                }
+            }
+        }
+
+        Path {
+            x: root.width - 26px - root.inset;
+            y: root.height - 26px - root.inset;
+            width: 22px;
+            height: 22px;
+            viewbox-width: 22;
+            viewbox-height: 22;
+            commands: "M 20 8 L 8 20 M 20 13 L 13 20 M 20 18 L 18 20";
+            stroke: #ffffff8c;
+            stroke-width: 1.6px;
+            fill: transparent;
+            opacity: drag.has-hover ? 1 : 0;
+            animate opacity { duration: 140ms; }
+        }
+
+        TouchArea {
+            x: root.width - 30px - root.inset;
+            y: root.height - 30px - root.inset;
+            width: 30px;
+            height: 30px;
+            mouse-cursor: nwse-resize;
+            pointer-event(event) => {
+                if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                    root.resize-window();
+                }
             }
         }
     }
