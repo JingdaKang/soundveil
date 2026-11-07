@@ -9,6 +9,7 @@ pub mod expressive;
 pub mod model;
 pub mod pipeline;
 pub mod release;
+pub mod resize;
 pub mod rolling;
 pub mod shortcuts;
 pub mod tokens;
@@ -18,6 +19,7 @@ pub use expressive::{WordStyle, cue_label, word_styles};
 pub use model::Model;
 pub use pipeline::{Caption, SpeechEvent, SpeechGate, Word};
 pub use release::{Release, Version};
+pub use resize::{ResizeEdges, ResizeZones};
 pub use rolling::{
     CaptionUpdate, DecodeJob, PlacedWord, RollingTranscriber, UpdateSpeed, WordPlacer,
     reveal_interval, update_interval,
