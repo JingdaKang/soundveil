@@ -42,6 +42,8 @@ Use **Open model folder** to install compatible GGML files manually or remove th
 
 Open **Soundveil → Settings** or the gear in the main window. If you close the main window, click Soundveil in the Dock to bring it back.
 
+**Language** sets the app's own text: English, Simplified or Traditional Chinese, Japanese, Korean, Spanish, French, or German. **System default** follows your Mac and falls back to English. Choosing a language asks for a restart, which stops any captions that are running. Captions themselves stay in English.
+
 **Update speed** sets how often captions refresh, so you can suit your own Mac. A faster rate means less delay and more GPU and battery use. Automatic rests as long as each pass took, which keeps the GPU under about half load on any Mac, and slows down further in Low Power Mode or when the Mac is hot. A fixed choice is always honored. The change applies at once, even while captions are running.
 
 **Appearance** sets how captions look. The preview shows each change, and the overlay follows at once. Start from a style: **Default** (white on a translucent black box), **Text only** (no box, with a soft shadow), **Yellow on black**, **Black on white**, or **Yellow on blue**. Then adjust the text, background, and highlighted word colors, and the background and text opacity. Soundveil warns you when colors are hard to read against each other. Below 60% background opacity, text gets a shadow so it stays readable over the video.
@@ -241,6 +243,8 @@ For manual acceptance, test permission denial/retry, Chrome and system capture, 
 - `Sources/Soundveil/App.swift`: SwiftUI controls, session lifecycle, history/export.
 - `Sources/Soundveil/Overlay.swift`: word feed, roll-up captions, hover controls, and resize edges.
 - `Sources/Soundveil/Settings.swift`, `Sources/Soundveil/Hotkeys.swift`: settings window, shortcut recorder, and global shortcuts.
+- `Sources/Soundveil/Language.swift`: app language choice and restart.
+- `Resources/Localizable.xcstrings`, `Resources/InfoPlist.xcstrings`: every interface string and its translations.
 - `Sources/ShortcutCore/Shortcuts.swift`: shortcut actions, defaults, validation, and storage.
 - `Sources/OverlayCore/CaptionStyle.swift`, `Sources/OverlayCore/Resize.swift`: caption colors, presets, and contrast checks, and overlay resize geometry.
 - `Sources/Soundveil/Capture.swift`: ScreenCaptureKit, PCM extraction, resampling, discontinuity handling, audio level.
@@ -253,6 +257,7 @@ For manual acceptance, test permission denial/retry, Chrome and system capture, 
 - `Tests/CaptionCoreTests/`: pipeline, rolling transcriber, overlay layout, and expressive word unit tests.
 - `Tests/ShortcutCoreTests/ShortcutTests.swift`: shortcut unit tests.
 - `Tests/OverlayCoreTests/`: caption style and overlay resize unit tests.
+- `Tests/StringCatalogTests/StringCatalogTests.swift`: checks that every language has every string.
 - `Tests/UpdateCoreTests/ReleaseTests.swift`: version and release-response unit tests.
 - `scripts/build.sh`, `scripts/test.sh`: reproducible build/package/sign and test commands.
 - `scripts/setup-signing.sh`: creates the local signing identity.
