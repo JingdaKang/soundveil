@@ -26,11 +26,11 @@ use overlay::Overlay;
 use settings::Settings;
 use slint::{ComponentHandle, Model as _, ModelRc, SharedString, VecModel, Weak};
 use soundveil_core::{
-    CaptionUpdate, Held, Keyboard, Model, ResizeEdges, ResizeZones, ShortcutAction, ShortcutMap,
+    CaptionStyle, CaptionUpdate, Held, Keyboard, Model, ResizeEdges, ResizeZones, ShortcutAction, ShortcutMap,
     UpdateSpeed,
 };
 use std::path::PathBuf;
-use std::cell::{OnceCell, RefCell};
+use std::cell::{Cell, OnceCell, RefCell};
 use std::process::{Command, ExitCode};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -69,6 +69,7 @@ struct Shared {
 struct View {
     captions: Rc<Captions>,
     overlay: Rc<Overlay>,
+    style: Cell<CaptionStyle>,
     shortcuts: RefCell<ShortcutMap>,
     /// `None` where the desktop owns the keys, as it does on Wayland.
     hotkeys: Option<RefCell<Hotkeys>>,
@@ -122,6 +123,7 @@ fn save(ui: &MainWindow) {
             .raw_value()
             .into(),
         caption_size: ui.get_caption_size(),
+        caption_style: with_view(|view| view.style.get()),
         quiet_threshold: ui.get_threshold(),
         highlight_words: ui.get_highlight(),
         click_through: ui.get_click_through(),
@@ -414,6 +416,7 @@ fn run_app(replay: Option<PathBuf>) -> Result<(), slint::PlatformError> {
     let view = View {
         captions: Captions::new(!settings.highlight_words),
         overlay: Overlay::new(settings.overlay, settings.click_through)?,
+        style: Cell::new(settings.caption_style),
         shortcuts: RefCell::new(shortcuts),
         hotkeys: (!on_wayland).then(|| RefCell::new(Hotkeys::new(firing(ui.as_weak())))),
         clashes: RefCell::new(Vec::new()),
