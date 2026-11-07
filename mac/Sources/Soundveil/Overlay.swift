@@ -19,6 +19,7 @@ import OverlayCore
  @Published var placeholder = "Your live captions appear here"
  @Published var fontSize: Double = 28 { didSet { if fontSize != oldValue { widths = [:]; relayout() } } }
  @Published var highlight = true { didSet { if highlight != oldValue { widths = [:]; relayout() } } }
+ @Published var style = CaptionStyle.standard
  @Published var hovering = false
  @Published var expanded = false { didSet { if expanded != oldValue { publish() } } }
  var lineHeight: Double { (fontSize * 1.3).rounded() }
@@ -119,7 +120,13 @@ import OverlayCore
   }
  }
 }
-private let captionAccent = Color(red: 1, green: 0.82, blue: 0.3)
+extension CaptionColor {
+ var color: Color { Color(.sRGB, red: red, green: green, blue: blue) }
+ init(_ color: Color) {
+  let value = NSColor(color).usingColorSpace(.sRGB) ?? .white
+  self.init(red: value.redComponent, green: value.greenComponent, blue: value.blueComponent)
+ }
+}
 // A brief pop as a highlighted word lands. Only these words animate this way, and not at all
 // under Reduce Motion: animating every word hurts reading.
 private struct PopIn<Content: View>: View {
@@ -130,42 +137,66 @@ private struct PopIn<Content: View>: View {
    .onAppear { withAnimation(.spring(response: 0.24, dampingFraction: 0.55)) { landed = true } }
  }
 }
+// One word as drawn, shared by the overlay and the preview in Settings.
+struct CaptionWord: View {
+ let text: String
+ let kind: WordStyle
+ let fontSize: Double
+ let style: CaptionStyle
+ var body: some View {
+  switch kind {
+  case .plain:
+   Text(text).font(.system(size: fontSize, weight: .semibold)).foregroundStyle(style.text.color)
+  case .sound, .slang:
+   PopIn { Text(text).font(.system(size: fontSize * 1.1, weight: .bold)).foregroundStyle(style.highlight.color) }
+  case .cue:
+   PopIn {
+    Text(text).font(.system(size: fontSize * 0.68, weight: .semibold)).foregroundStyle(style.highlight.color)
+     .padding(.horizontal, 10).frame(height: fontSize * 1.04)
+     .background(style.highlight.color.opacity(0.14), in: Capsule())
+     .overlay(Capsule().strokeBorder(style.highlight.color.opacity(0.45)))
+   }
+  }
+ }
+}
+// With little background behind it, text needs an edge of its own or it vanishes against a
+// video of the same color. The whole block is shadowed once, so this costs one pass per frame.
+struct CaptionTextLook: ViewModifier {
+ let style: CaptionStyle
+ func body(content: Content) -> some View {
+  Group {
+   if style.isSeeThrough {
+    content.compositingGroup()
+     .shadow(color: style.edge.color.opacity(0.9), radius: 1, x: 0, y: 1)
+     .shadow(color: style.edge.color.opacity(0.6), radius: 3)
+   } else { content }
+  }
+  .opacity(style.textOpacity)
+ }
+}
 // Roll-up captions: left-aligned, newest line at the bottom, older lines sliding up.
 struct CaptionLines: View {
  @ObservedObject var feed: CaptionFeed
  let rows: Int
  private var font: Font { .system(size: feed.fontSize, weight: .semibold) }
  private var top: Int { (feed.items.last?.line ?? 0) - rows + 1 }
- @ViewBuilder private func look(_ item: CaptionFeed.Item) -> some View {
-  switch item.style {
-  case .plain:
-   Text(item.text).font(font).foregroundStyle(Color.white)
-  case .sound, .slang:
-   PopIn { Text(item.text).font(.system(size: feed.fontSize * 1.1, weight: .bold)).foregroundStyle(captionAccent) }
-  case .cue:
-   PopIn {
-    Text(item.text).font(.system(size: feed.fontSize * 0.68, weight: .semibold)).foregroundStyle(captionAccent)
-     .padding(.horizontal, 10).frame(height: feed.fontSize * 1.04)
-     .background(captionAccent.opacity(0.14), in: Capsule())
-     .overlay(Capsule().strokeBorder(captionAccent.opacity(0.45)))
-   }
-  }
- }
  // Larger words sit up by their extra height so every word shares a baseline.
  private func lift(_ item: CaptionFeed.Item) -> Double {
   switch item.style { case .plain: return 0; case .cue: return feed.fontSize * 0.1; default: return -feed.fontSize * 0.12 }
  }
  private func word(_ item: CaptionFeed.Item) -> some View {
-  look(item).opacity(item.confirmed ? 1 : 0.62).fixedSize()
+  CaptionWord(text: item.text, kind: item.style, fontSize: feed.fontSize, style: feed.style)
+   .opacity(item.confirmed ? 1 : 0.62).fixedSize()
    .offset(x: item.x, y: Double(item.line - top) * feed.lineHeight + lift(item)).transition(.opacity)
  }
  var body: some View {
   ZStack(alignment: .topLeading) {
    if feed.items.isEmpty, !feed.placeholder.isEmpty {
-    Text(feed.placeholder).font(font).foregroundStyle(Color.white.opacity(0.6)).lineLimit(1).minimumScaleFactor(0.5).transition(.opacity)
+    Text(feed.placeholder).font(font).foregroundStyle(feed.style.text.color.opacity(0.6)).lineLimit(1).minimumScaleFactor(0.5).transition(.opacity)
    }
    ForEach(feed.items.filter { $0.line >= top - 1 }) { word($0) }
   }
+  .modifier(CaptionTextLook(style: feed.style))
   .frame(maxWidth: .infinity, alignment: .topLeading)
   .frame(height: Double(rows) * feed.lineHeight, alignment: .topLeading)
   .clipped()
@@ -303,13 +334,14 @@ private func resizeCursor(for edges: ResizeEdges) -> NSCursor {
 }
 // The visible hint for the bottom right corner. OverlayResizer takes the drag.
 struct ResizeGrip: View {
+ let color: Color
  var body: some View {
   Path { path in
    for (x, y) in [(10.0, 11.0), (15.0, 16.0), (20.0, 21.0)] {
     path.move(to: CGPoint(x: 21, y: y)); path.addLine(to: CGPoint(x: x, y: 22))
    }
   }
-  .stroke(Color.white.opacity(0.55), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+  .stroke(color.opacity(0.55), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
   .frame(width: 26, height: 26).allowsHitTesting(false)
  }
 }
@@ -318,14 +350,23 @@ struct CaptionOverlay: View {
  @ObservedObject var feed: CaptionFeed
  static let controlMargin = 7.0, panelMargin = 6.0
  private let inset = 22.0
- private var backing: Double { feed.items.isEmpty && feed.placeholder.isEmpty && !feed.hovering ? 0.05 : 0.78 }
+ private var backing: Double {
+  let resting = feed.items.isEmpty && feed.placeholder.isEmpty && !feed.hovering
+  return resting ? min(0.05, feed.style.backgroundOpacity) : feed.style.backgroundOpacity
+ }
  private func rows(_ height: Double) -> Int { max(1, Int((height - 28) / feed.lineHeight)) }
  var body: some View {
   GeometryReader { geometry in
    CaptionLines(feed: feed, rows: rows(geometry.size.height))
     .padding(.horizontal, inset)
     .frame(maxHeight: .infinity)
-    .background(Color.black.opacity(backing), in: RoundedRectangle(cornerRadius: 16))
+    .background(feed.style.background.color.opacity(backing), in: RoundedRectangle(cornerRadius: 16))
+    .overlay {
+     // With next to no background, this shows where the panel's edges are.
+     if feed.hovering, feed.style.backgroundOpacity < 0.2 {
+      RoundedRectangle(cornerRadius: 16).strokeBorder(Color.gray.opacity(0.8)).allowsHitTesting(false).transition(.opacity)
+     }
+    }
     .overlay(alignment: .topTrailing) {
      if feed.hovering {
       Group {
@@ -335,7 +376,7 @@ struct CaptionOverlay: View {
      }
     }
     .overlay(alignment: .bottomTrailing) {
-     if feed.hovering, !state.clickThrough { ResizeGrip().transition(.opacity) }
+     if feed.hovering, !state.clickThrough { ResizeGrip(color: feed.style.text.color).transition(.opacity) }
     }
     .animation(.easeOut(duration: 0.14), value: feed.hovering)
     .onAppear { feed.configure(width: geometry.size.width - inset * 2) }

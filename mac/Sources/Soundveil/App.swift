@@ -3,6 +3,7 @@ import AppKit
 import CaptionCore
 import UpdateCore
 import ShortcutCore
+import OverlayCore
 
 @MainActor final class AppState: ObservableObject {
  @Published var model: Model { didSet { UserDefaults.standard.set(model.rawValue, forKey: "model") } }
@@ -10,6 +11,7 @@ import ShortcutCore
  @Published var vadDB: Double = -50
  @Published var level: Float = 0
  @Published var fontSize: Double { didSet { UserDefaults.standard.set(fontSize, forKey: "captionSize"); feed.fontSize = fontSize } }
+ @Published var captionStyle: CaptionStyle { didSet { UserDefaults.standard.set(captionStyle.encoded(), forKey: "captionStyle"); feed.style = captionStyle } }
  @Published var status = "Download a model to get started."
  @Published var highlightWords: Bool { didSet { UserDefaults.standard.set(highlightWords, forKey: "highlightWords"); feed.highlight = highlightWords } }
  @Published var updateSpeed: UpdateSpeed { didSet { UserDefaults.standard.set(updateSpeed.rawValue, forKey: "updateSpeed"); inference?.setSpeed(updateSpeed) } }
@@ -39,11 +41,12 @@ import ShortcutCore
   model = Model.saved(UserDefaults.standard.string(forKey: "model"))
   let saved = UserDefaults.standard.double(forKey: "captionSize")
   fontSize = saved > 0 ? saved : 28
+  captionStyle = UserDefaults.standard.data(forKey: "captionStyle").flatMap { CaptionStyle(data: $0) } ?? .standard
   highlightWords = UserDefaults.standard.object(forKey: "highlightWords") as? Bool ?? true
   updateSpeed = UpdateSpeed(rawValue: UserDefaults.standard.string(forKey: "updateSpeed") ?? "") ?? .auto
   clickThrough = UserDefaults.standard.bool(forKey: "clickThrough")
   shortcuts = UserDefaults.standard.data(forKey: "shortcuts").flatMap { ShortcutMap(data: $0) } ?? .defaults
-  feed.fontSize = fontSize; feed.highlight = highlightWords
+  feed.fontSize = fontSize; feed.highlight = highlightWords; feed.style = captionStyle
   hotkeys.onAction = { [weak self] in self?.perform($0) }
   applyShortcuts()
  }
