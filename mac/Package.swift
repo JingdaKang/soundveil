@@ -18,5 +18,6 @@ let package = Package(name: "Soundveil", platforms: [.macOS(.v14)], products: [.
  .testTarget(name: "CaptionCoreTests", dependencies: ["CaptionCore"]),
  .testTarget(name: "UpdateCoreTests", dependencies: ["UpdateCore"]),
  .testTarget(name: "ShortcutCoreTests", dependencies: ["ShortcutCore"]),
- .testTarget(name: "OverlayCoreTests", dependencies: ["OverlayCore"])
+ .testTarget(name: "OverlayCoreTests", dependencies: ["OverlayCore"]),
+ .testTarget(name: "StringCatalogTests")
 ])
