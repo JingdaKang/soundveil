@@ -278,7 +278,7 @@ struct ContentView: View {
  @StateObject private var state = AppState()
  @AppStorage("checkForUpdates") private var autoCheck = true
  var body: some Scene {
-  Settings { SettingsView(state: state) }
+  // SwiftUI treats the first scene as the app's main one, so this stays ahead of Settings.
   WindowGroup { ContentView(state: state).task { if autoCheck { await state.checkForUpdates(manual: false) } } }
    .commands { CommandGroup(after: .appInfo) {
     Button("Check for Updates…") { Task { await state.checkForUpdates(manual: true) } }
@@ -286,5 +286,6 @@ struct ContentView: View {
    }
    CommandGroup(after: .windowSize) { Button("Reset Caption Overlay") { state.resetOverlay() } }
    }
+  Settings { SettingsView(state: state) }
  }
 }
