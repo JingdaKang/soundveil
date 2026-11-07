@@ -1,8 +1,8 @@
 import { AboutSlint, Button, ComboBox, ListView, Palette, ProgressIndicator, ScrollView, Slider, Spinner, Switch } from "std-widgets.slint";
-import { CaptionWord, CaptionWords } from "captions.slint";
+import { CaptionLook, CaptionWord, CaptionWords } from "captions.slint";
 
 export { CaptionOverlay } from "overlay.slint";
-export { CaptionWord }
+export { CaptionLook, CaptionWord }
 
 export struct HistoryLine {
     time: string,
@@ -80,6 +80,10 @@ component Stage inherits Rectangle {
     border-width: 1px;
     border-color: Theme.stage-edge;
     clip: true;
+    Rectangle {
+        background: CaptionLook.style.background.with-alpha(CaptionLook.style.background-opacity);
+    }
+
     CaptionWords {
         x: 18px;
         y: 12px;

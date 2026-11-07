@@ -1,6 +1,7 @@
 // A release build opens no console window on Windows.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+mod appearance;
 #[cfg(any(windows, test))]
 mod audio;
 mod capture;
@@ -26,8 +27,8 @@ use overlay::Overlay;
 use settings::Settings;
 use slint::{ComponentHandle, Model as _, ModelRc, SharedString, VecModel, Weak};
 use soundveil_core::{
-    CaptionStyle, CaptionUpdate, Held, Keyboard, Model, ResizeEdges, ResizeZones, ShortcutAction, ShortcutMap,
-    UpdateSpeed,
+    CaptionStyle, CaptionUpdate, Held, Keyboard, Model, ResizeEdges, ResizeZones, ShortcutAction,
+    ShortcutMap, UpdateSpeed,
 };
 use std::path::PathBuf;
 use std::cell::{Cell, OnceCell, RefCell};
@@ -424,6 +425,7 @@ fn run_app(replay: Option<PathBuf>) -> Result<(), slint::PlatformError> {
     ui.set_words(view.captions.model());
     view.overlay.window.set_words(view.captions.model());
     view.overlay.window.set_size_points(settings.caption_size);
+    appearance::show(&ui, &view.overlay.window, &settings.caption_style);
     VIEW.with(|cell| cell.set(view).map_err(|_| ()).expect("one view"));
     connect_shortcuts(&ui, on_wayland);
     let saved_model = Model::saved(Some(&settings.model));

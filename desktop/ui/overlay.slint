@@ -190,7 +190,10 @@ export component CaptionOverlay inherits Window {
             width: root.width - root.inset * 2;
             height: root.height - root.inset * 2;
             border-radius: 16px;
-            background: root.quiet && !root.hovering ? #0000000d : #000000c7;
+            background: CaptionLook.style.background.with-alpha(root.quiet && !root.hovering ? min(0.05, CaptionLook.style.background-opacity) : CaptionLook.style.background-opacity);
+            // With next to no background, this shows where the panel's edges are.
+            border-width: root.hovering && CaptionLook.style.background-opacity < 0.2 ? 1px : 0px;
+            border-color: #808080cc;
             animate background { duration: 140ms; }
 
             CaptionWords {
@@ -206,7 +209,7 @@ export component CaptionOverlay inherits Window {
             EdgeHandles {
                 width: parent.width;
                 height: parent.height;
-                ink: CaptionLook.text.with-alpha(0.45);
+                ink: CaptionLook.style.text.with-alpha(0.45);
                 opacity: root.show-controls ? 1 : 0;
                 animate opacity { duration: 140ms; }
             }
@@ -297,7 +300,7 @@ export component CaptionOverlay inherits Window {
             viewbox-width: 22;
             viewbox-height: 22;
             commands: "M 20 8 L 8 20 M 20 13 L 13 20 M 20 18 L 18 20";
-            stroke: CaptionLook.text.with-alpha(0.55);
+            stroke: CaptionLook.style.text.with-alpha(0.55);
             stroke-width: 1.6px;
             fill: transparent;
             opacity: root.show-controls ? 1 : 0;

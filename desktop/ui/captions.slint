@@ -7,9 +7,59 @@ export struct CaptionWord {
     settled: bool,
 }
 
+export struct CaptionAppearance {
+    text: color,
+    background: color,
+    highlight: color,
+    background-opacity: float,
+    text-opacity: float,
+    shadowed: bool,
+    edge: color,
+}
+
 export global CaptionLook {
-    out property <color> text: #ffffff;
-    out property <color> accent: #ffd14d;
+    in property <CaptionAppearance> style: {
+        text: #ffffff,
+        background: #000000,
+        highlight: #ffd14d,
+        background-opacity: 0.78,
+        text-opacity: 1,
+        shadowed: false,
+        edge: #000000,
+    };
+}
+
+// With little background behind it, text needs an edge of its own or it vanishes against a video
+// of the same color. Text has no shadow in Slint, so copies around it stand in for one: a firm one
+// just below, and a faint ring. Copies look the same on every renderer, which a stroke doesn't.
+export component TextShadow {
+    in property <string> text;
+    in property <color> edge;
+    in property <length> font-size;
+    in property <int> font-weight;
+    in property <TextVerticalAlignment> vertical-alignment: top;
+    in property <TextOverflow> overflow: clip;
+    property <[{x: length, y: length, alpha: float}]> copies: [
+        { x: 0px, y: 1px, alpha: 0.9 },
+        { x: -1px, y: 0px, alpha: 0.35 },
+        { x: 1px, y: 0px, alpha: 0.35 },
+        { x: 0px, y: -1px, alpha: 0.35 },
+        { x: -1.5px, y: 1.5px, alpha: 0.2 },
+        { x: 1.5px, y: 1.5px, alpha: 0.2 },
+    ];
+    for copy in root.copies: Text {
+        x: copy.x;
+        y: copy.y;
+        width: root.width;
+        height: root.height;
+        text: root.text;
+        color: root.edge.with-alpha(copy.alpha);
+        font-size: root.font-size;
+        font-weight: root.font-weight;
+        vertical-alignment: root.vertical-alignment;
+        overflow: root.overflow;
+        wrap: no-wrap;
+    }
 }
 
 component WordCell {
@@ -20,7 +70,9 @@ component WordCell {
     property <bool> landed: false;
     property <bool> cue: root.word.kind == 2;
     property <bool> accent: root.word.kind == 1;
-    property <color> ink: root.cue || root.accent ? CaptionLook.accent : CaptionLook.text;
+    property <color> ink: root.cue || root.accent ? CaptionLook.style.highlight : CaptionLook.style.text;
+    property <length> text-size: (root.cue ? root.size * 0.68 : root.accent ? root.size * 1.1 : root.size) * 1px;
+    property <int> weight: root.accent ? 700 : 600;
 
     init => {
         self.landed = true;
@@ -38,13 +90,23 @@ component WordCell {
         border-width: 1px;
         border-color: root.ink.with-alpha(0.45);
     }
+    if CaptionLook.style.shadowed: TextShadow {
+        x: label.x;
+        y: label.y;
+        width: label.width;
+        height: label.height;
+        text: root.word.text;
+        edge: CaptionLook.style.edge;
+        font-size: root.text-size;
+        font-weight: root.weight;
+    }
     label := Text {
         x: root.cue ? 10px : 0px;
         y: root.cue ? (root.line - self.preferred-height) / 2 + root.size * 0.06px : root.line - self.preferred-height;
         text: root.word.text;
         color: root.ink;
-        font-size: (root.cue ? root.size * 0.68 : root.accent ? root.size * 1.1 : root.size) * 1px;
-        font-weight: root.accent ? 700 : 600;
+        font-size: root.text-size;
+        font-weight: root.weight;
         wrap: no-wrap;
     }
 }
@@ -57,14 +119,26 @@ export component CaptionWords {
     property <length> line: round(root.size * 1.3) * 1px;
     // Only whole lines, so the oldest is never cut through the middle.
     property <int> rows: max(1, floor(root.height / root.line));
+    property <bool> waiting: root.words.length == 0 && root.placeholder != "";
     accessible-role: text;
     accessible-label: "Live captions";
+    opacity: CaptionLook.style.text-opacity;
 
-    if root.words.length == 0 && root.placeholder != "": Text {
+    if root.waiting && CaptionLook.style.shadowed: TextShadow {
         width: root.width;
         height: root.height;
         text: root.placeholder;
-        color: CaptionLook.text.with-alpha(0.6);
+        edge: CaptionLook.style.edge;
+        font-size: min(root.size, 24) * 1px;
+        font-weight: 600;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    if root.waiting: Text {
+        width: root.width;
+        height: root.height;
+        text: root.placeholder;
+        color: CaptionLook.style.text.with-alpha(0.6);
         font-size: min(root.size, 24) * 1px;
         font-weight: 600;
         vertical-alignment: center;
