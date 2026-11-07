@@ -1,4 +1,4 @@
-import { CaptionWord, CaptionWords } from "captions.slint";
+import { CaptionLook, CaptionWord, CaptionWords } from "captions.slint";
 
 component ControlButton {
     in property <string> label;
@@ -37,6 +37,49 @@ component ControlButton {
     }
     touch := TouchArea {
         mouse-cursor: pointer;
+    }
+}
+
+// Shows where to grab, because the resize cursor may not appear while another app is in front.
+component EdgeHandles {
+    in property <color> ink;
+    property <length> long: 34px;
+    property <length> thick: 4px;
+    property <length> gap: 3px;
+    Rectangle {
+        x: (root.width - self.width) / 2;
+        y: root.gap;
+        width: root.long;
+        height: root.thick;
+        border-radius: 2px;
+        background: root.ink;
+    }
+
+    Rectangle {
+        x: (root.width - self.width) / 2;
+        y: root.height - self.height - root.gap;
+        width: root.long;
+        height: root.thick;
+        border-radius: 2px;
+        background: root.ink;
+    }
+
+    Rectangle {
+        x: root.gap;
+        y: (root.height - self.height) / 2;
+        width: root.thick;
+        height: root.long;
+        border-radius: 2px;
+        background: root.ink;
+    }
+
+    Rectangle {
+        x: root.width - self.width - root.gap;
+        y: (root.height - self.height) / 2;
+        width: root.thick;
+        height: root.long;
+        border-radius: 2px;
+        background: root.ink;
     }
 }
 
@@ -101,6 +144,12 @@ export component CaptionOverlay inherits Window {
                 words: root.words;
                 placeholder: root.placeholder;
                 size: root.size-points;
+            }
+
+            EdgeHandles {
+                ink: CaptionLook.text.with-alpha(0.45);
+                opacity: drag.has-hover ? 1 : 0;
+                animate opacity { duration: 140ms; }
             }
         }
 
@@ -174,7 +223,7 @@ export component CaptionOverlay inherits Window {
             viewbox-width: 22;
             viewbox-height: 22;
             commands: "M 20 8 L 8 20 M 20 13 L 13 20 M 20 18 L 18 20";
-            stroke: #ffffff8c;
+            stroke: CaptionLook.text.with-alpha(0.55);
             stroke-width: 1.6px;
             fill: transparent;
             opacity: drag.has-hover ? 1 : 0;
