@@ -274,18 +274,45 @@ struct ContentView: View {
   .animation(.default, value: state.update)
  }
 }
+// SwiftUI skips the main window when macOS has any saved window to restore, even just Settings, and
+// a Dock click does nothing while Settings is open. Either would leave the app with no way to start
+// captions, so the main window is opened here. Opening it when it's already open only raises it.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+ var showMainWindow: () -> Void = {}
+ func applicationDidFinishLaunching(_ notification: Notification) {
+  DispatchQueue.main.async { self.showMainWindow() }
+ }
+ func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+  showMainWindow()
+  return true
+ }
+ // Captions keep running in the overlay after the main window closes.
+ func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+}
+struct AppCommands: Commands {
+ @ObservedObject var state: AppState
+ @Binding var autoCheck: Bool
+ let delegate: AppDelegate
+ @Environment(\.openWindow) private var openWindow
+ var body: some Commands {
+  // Commands are the one place that has openWindow before any window exists.
+  let _ = delegate.showMainWindow = { [openWindow] in openWindow(id: "main") }
+  CommandGroup(after: .appInfo) {
+   Button("Check for Updates…") { Task { await state.checkForUpdates(manual: true) } }
+   Toggle("Check for Updates Automatically", isOn: $autoCheck)
+  }
+  CommandGroup(after: .windowSize) { Button("Reset Caption Overlay") { state.resetOverlay() } }
+ }
+}
 @main struct SoundveilApp: App {
+ @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
  @StateObject private var state = AppState()
  @AppStorage("checkForUpdates") private var autoCheck = true
  var body: some Scene {
   // SwiftUI treats the first scene as the app's main one, so this stays ahead of Settings.
-  WindowGroup { ContentView(state: state).task { if autoCheck { await state.checkForUpdates(manual: false) } } }
-   .commands { CommandGroup(after: .appInfo) {
-    Button("Check for Updates…") { Task { await state.checkForUpdates(manual: true) } }
-    Toggle("Check for Updates Automatically", isOn: $autoCheck)
-   }
-   CommandGroup(after: .windowSize) { Button("Reset Caption Overlay") { state.resetOverlay() } }
-   }
+  Window("Soundveil", id: "main") { ContentView(state: state).task { if autoCheck { await state.checkForUpdates(manual: false) } } }
+   .defaultSize(width: 900, height: 720)
+   .commands { AppCommands(state: state, autoCheck: $autoCheck, delegate: delegate) }
   Settings { SettingsView(state: state) }
  }
 }
