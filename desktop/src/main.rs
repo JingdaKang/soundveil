@@ -25,7 +25,8 @@ use overlay::Overlay;
 use settings::Settings;
 use slint::{ComponentHandle, Model as _, ModelRc, SharedString, VecModel, Weak};
 use soundveil_core::{
-    CaptionUpdate, Held, Keyboard, Model, ShortcutAction, ShortcutMap, UpdateSpeed,
+    CaptionUpdate, Held, Keyboard, Model, ResizeEdges, ResizeZones, ShortcutAction, ShortcutMap,
+    UpdateSpeed,
 };
 use std::path::PathBuf;
 use std::cell::{OnceCell, RefCell};
@@ -813,7 +814,13 @@ fn connect_overlay(ui: &MainWindow) {
         window.on_click_through(act(handle(), |ui| set_click_through(ui, true)));
         window.on_hide_overlay(act(handle(), hide_overlay));
         window.on_move_window(|| with_view(|view| view.overlay.start_move()));
-        window.on_resize_window(|| with_view(|view| view.overlay.start_resize()));
+        window.on_resize_window(|edges| {
+            let edges = ResizeEdges::from_bits(edges as u8);
+            with_view(|view| view.overlay.start_resize(edges));
+        });
+        window.on_edges_at(|x, y, width, height| {
+            i32::from(ResizeZones::OVERLAY.edges(x, y, width, height).bits())
+        });
     });
 }
 

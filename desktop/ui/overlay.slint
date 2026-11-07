@@ -61,18 +61,26 @@ export component CaptionOverlay inherits Window {
     callback click-through();
     callback hide-overlay();
     callback move-window();
-    callback resize-window();
+    // Sides are bits: 1 left, 2 right, 4 bottom, 8 top. The Rust side decides which apply.
+    callback resize-window(int);
+    pure callback edges-at(length, length, length, length) -> int;
 
     property <length> inset: 6px;
     property <bool> quiet: root.words.length == 0 && root.placeholder == "";
+    property <int> edges: drag.has-hover ? root.edges-at(drag.mouse-x, drag.mouse-y, root.width, root.height) : 0;
 
     // The rest sits inside this area, because it only counts as hovered while the pointer is on it
     // or on something inside it. As a sibling behind the controls, it would lose the pointer to
     // them and take them away.
     drag := TouchArea {
+        mouse-cursor: root.edges == 1 || root.edges == 2 ? MouseCursor.ew-resize : root.edges == 4 || root.edges == 8 ? MouseCursor.ns-resize : root.edges == 9 || root.edges == 6 ? MouseCursor.nwse-resize : root.edges == 10 || root.edges == 5 ? MouseCursor.nesw-resize : MouseCursor.default;
         pointer-event(event) => {
             if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
-                root.move-window();
+                if root.edges == 0 {
+                    root.move-window();
+                } else {
+                    root.resize-window(root.edges);
+                }
             }
         }
 
@@ -171,19 +179,6 @@ export component CaptionOverlay inherits Window {
             fill: transparent;
             opacity: drag.has-hover ? 1 : 0;
             animate opacity { duration: 140ms; }
-        }
-
-        TouchArea {
-            x: root.width - 30px - root.inset;
-            y: root.height - 30px - root.inset;
-            width: 30px;
-            height: 30px;
-            mouse-cursor: nwse-resize;
-            pointer-event(event) => {
-                if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
-                    root.resize-window();
-                }
-            }
         }
     }
 }

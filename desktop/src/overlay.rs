@@ -11,6 +11,7 @@ use slint::winit_030::winit::event::WindowEvent as NativeEvent;
 use slint::winit_030::winit::window::{ResizeDirection, Window as NativeWindow};
 use slint::winit_030::{EventResult, WinitWindowAccessor, winit};
 use slint::{ComponentHandle, LogicalSize, PhysicalPosition, Timer, TimerMode};
+use soundveil_core::ResizeEdges;
 use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
@@ -81,6 +82,29 @@ fn refuse_focus(window: &NativeWindow) {
 
 #[cfg(not(windows))]
 fn refuse_focus(_window: &NativeWindow) {}
+
+/// The way a drag from these sides pulls the window. Nothing means the drag isn't a resize.
+fn resize_direction(edges: ResizeEdges) -> Option<ResizeDirection> {
+    let (west, east) = (
+        edges.contains(ResizeEdges::LEFT),
+        edges.contains(ResizeEdges::RIGHT),
+    );
+    let (north, south) = (
+        edges.contains(ResizeEdges::TOP),
+        edges.contains(ResizeEdges::BOTTOM),
+    );
+    Some(match (north, south, west, east) {
+        (true, _, true, _) => ResizeDirection::NorthWest,
+        (true, _, _, true) => ResizeDirection::NorthEast,
+        (_, true, true, _) => ResizeDirection::SouthWest,
+        (_, true, _, true) => ResizeDirection::SouthEast,
+        (true, ..) => ResizeDirection::North,
+        (_, true, ..) => ResizeDirection::South,
+        (.., true, _) => ResizeDirection::West,
+        (.., true) => ResizeDirection::East,
+        _ => return None,
+    })
+}
 
 /// Grows upward to a useful reading height, without taking most of the screen.
 fn expanded_height(height: f32, line: f32, screen: f32) -> f32 {
@@ -266,8 +290,12 @@ impl Overlay {
         self.forget_pointer();
     }
 
-    pub fn start_resize(&self) {
-        self.with_native(|native| native.drag_resize_window(ResizeDirection::SouthEast).ok());
+    /// winit can't do this on a Mac, so there the handles and cursors show but nothing moves.
+    pub fn start_resize(&self, edges: ResizeEdges) {
+        let Some(direction) = resize_direction(edges) else {
+            return;
+        };
+        self.with_native(|native| native.drag_resize_window(direction).ok());
         self.forget_pointer();
     }
 
@@ -333,6 +361,26 @@ mod tests {
         width: 1920,
         height: 1080,
     };
+
+    #[test]
+    fn each_side_and_corner_pulls_its_own_way() {
+        use ResizeDirection::*;
+        use ResizeEdges as Edges;
+        let pairs = [
+            (Edges::LEFT, West),
+            (Edges::RIGHT, East),
+            (Edges::TOP, North),
+            (Edges::BOTTOM, South),
+            (Edges::LEFT | Edges::TOP, NorthWest),
+            (Edges::RIGHT | Edges::TOP, NorthEast),
+            (Edges::LEFT | Edges::BOTTOM, SouthWest),
+            (Edges::RIGHT | Edges::BOTTOM, SouthEast),
+        ];
+        for (edges, direction) in pairs {
+            assert_eq!(resize_direction(edges), Some(direction), "{edges:?}");
+        }
+        assert_eq!(resize_direction(Edges::NONE), None);
+    }
 
     #[test]
     fn expanding_reaches_a_useful_height() {
