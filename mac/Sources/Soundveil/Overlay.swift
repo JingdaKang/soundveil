@@ -225,8 +225,8 @@ struct HoverSensor: NSViewRepresentable {
  func makeNSView(context: Context) -> HoverSensorView { let view = HoverSensorView(); view.onHover = onHover; return view }
  func updateNSView(_ view: HoverSensorView, context: Context) { view.onHover = onHover }
 }
-// Shown on hover only, so the default overlay stays nothing but text. System tooltips don't
-// appear on a panel that never takes focus, so each button names itself here instead.
+// Shown on hover only, so the default overlay stays nothing but text. System tooltips only
+// appear while this app is in front, and captions run behind Chrome, so each button names itself.
 struct OverlayControls: View {
  @ObservedObject var state: AppState
  @ObservedObject var feed: CaptionFeed
@@ -276,10 +276,10 @@ struct ClickThroughBadge: View {
   .overlay(Capsule().strokeBorder(Color.white.opacity(0.14)))
  }
 }
-// A borderless panel gets no resize edges from AppKit, so this view supplies them. It sits above
-// the captions and claims only the border: anywhere else a click reaches the buttons or moves
-// the panel. It stays in place during a drag, because the pointer can leave the panel at its
-// minimum size and the view has to be there for the mouse-up.
+// A borderless panel gets no resize edges from AppKit, so these strips supply them. They line
+// the border and no more: AppKit won't move a window from anywhere a view like this covers, even
+// if the view declines the click. Each stays in place during a drag, because the pointer can
+// leave the panel at its minimum size and the view has to be there for the mouse-up.
 final class OverlayResizer: NSView {
  static let zones = ResizeZones(band: 12, corner: 28, grip: 32)
  var onFinish: (() -> Void)?
@@ -287,18 +287,35 @@ final class OverlayResizer: NSView {
  private var dragging: ResizeEdges = []
  private var startFrame = NSRect.zero
  private var startMouse = NSPoint.zero
+ static func install(in content: NSView, onFinish: @escaping () -> Void) {
+  let size = content.bounds.size, band = zones.band, grip = zones.grip
+  let strips: [(NSRect, NSView.AutoresizingMask)] = [
+   (NSRect(x: 0, y: 0, width: band, height: size.height), [.height, .maxXMargin]),
+   (NSRect(x: size.width - band, y: 0, width: band, height: size.height), [.height, .minXMargin]),
+   (NSRect(x: 0, y: 0, width: size.width, height: band), [.width, .maxYMargin]),
+   (NSRect(x: 0, y: size.height - band, width: size.width, height: band), [.width, .minYMargin]),
+   (NSRect(x: size.width - grip, y: 0, width: grip, height: grip), [.minXMargin, .maxYMargin]),
+  ]
+  for (frame, mask) in strips {
+   let strip = OverlayResizer(frame: frame)
+   strip.autoresizingMask = mask; strip.onFinish = onFinish
+   content.addSubview(strip)
+  }
+ }
  override var mouseDownCanMoveWindow: Bool { false }
  override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
- private func edges(at point: NSPoint) -> ResizeEdges { Self.zones.edges(at: point, in: bounds.size) }
- private func edges(of event: NSEvent) -> ResizeEdges { edges(at: convert(event.locationInWindow, from: nil)) }
+ private func edges(of event: NSEvent) -> ResizeEdges {
+  guard let superview else { return [] }
+  return Self.zones.edges(at: superview.convert(event.locationInWindow, from: nil), in: superview.bounds.size)
+ }
  private func screenPoint(_ event: NSEvent) -> NSPoint { window?.convertPoint(toScreen: event.locationInWindow) ?? .zero }
- override func hitTest(_ point: NSPoint) -> NSView? { edges(at: convert(point, from: superview)).isEmpty ? nil : self }
  override func updateTrackingAreas() {
   super.updateTrackingAreas()
   guard tracker == nil else { return }
   let area = NSTrackingArea(rect: .zero, options: [.activeAlways, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect], owner: self)
   addTrackingArea(area); tracker = area
  }
+ override func mouseEntered(with event: NSEvent) { if dragging.isEmpty { resizeCursor(for: edges(of: event)).set() } }
  override func mouseMoved(with event: NSEvent) { if dragging.isEmpty { resizeCursor(for: edges(of: event)).set() } }
  override func mouseExited(with event: NSEvent) { if dragging.isEmpty { NSCursor.arrow.set() } }
  override func mouseDown(with event: NSEvent) {

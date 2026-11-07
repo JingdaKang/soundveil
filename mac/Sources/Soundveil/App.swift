@@ -132,10 +132,10 @@ import OverlayCore
    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
    let host = OverlayHost(rootView: CaptionOverlay(state: self, feed: feed))
    host.onHover = { [weak self] inside in if self?.clickThrough == false { self?.feed.hovering = inside } }
-   let resizer = OverlayResizer()
-   resizer.onFinish = { [weak self] in self?.saveOverlayFrame() }
-   let content = NSView()
-   for view in [host, resizer] { view.autoresizingMask = [.width, .height]; content.addSubview(view) }
+   let content = NSView(frame: NSRect(origin: .zero, size: panel.frame.size))
+   host.frame = content.bounds; host.autoresizingMask = [.width, .height]
+   content.addSubview(host)
+   OverlayResizer.install(in: content) { [weak self] in self?.saveOverlayFrame() }
    panel.contentView = content
    panel.minSize = NSSize(width: 400, height: 90)
    if !panel.setFrameUsingName("CaptionOverlay") { place(panel) }
