@@ -66,7 +66,7 @@ struct SettingsView: View {
     Text(state.updateSpeed.detail).font(.caption).foregroundStyle(.secondary)
     Toggle("Highlight sound words and slang", isOn: $state.highlightWords)
     Toggle("Click through overlay", isOn: $state.clickThrough)
-    Text("Clicks pass to whatever is behind the overlay. It can't be dragged or show its controls until this is off.").font(.caption).foregroundStyle(.secondary)
+    Text("Clicks go to whatever is behind the overlay, so you can use video controls under it. To turn this off, point at the overlay and choose Turn off click-through, or use the shortcut.").font(.caption).foregroundStyle(.secondary)
    }
    Section("Keyboard shortcuts") {
     ForEach(ShortcutAction.allCases) { ShortcutRecorder(state: state, action: $0) }

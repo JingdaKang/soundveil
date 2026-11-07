@@ -228,6 +228,23 @@ struct OverlayControls: View {
   }
  }
 }
+// While clicks pass through, this is the one spot on the overlay that still takes a click.
+struct ClickThroughBadge: View {
+ static let size = CGSize(width: 182, height: 30)
+ let action: () -> Void
+ var body: some View {
+  Button(action: action) {
+   HStack(spacing: 6) {
+    Image(systemName: "cursorarrow.rays")
+    Text("Turn off click-through")
+   }
+   .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.white)
+   .frame(width: Self.size.width, height: Self.size.height).contentShape(Capsule())
+  }
+  .buttonStyle(.plain).background(Color.black.opacity(0.72), in: Capsule())
+  .overlay(Capsule().strokeBorder(Color.white.opacity(0.14)))
+ }
+}
 // A borderless panel gets no resize edges from AppKit, so this view supplies them. It sits above
 // the captions and claims only the border: anywhere else a click reaches the buttons or moves
 // the panel. It stays in place during a drag, because the pointer can leave the panel at its
@@ -299,6 +316,7 @@ struct ResizeGrip: View {
 struct CaptionOverlay: View {
  @ObservedObject var state: AppState
  @ObservedObject var feed: CaptionFeed
+ static let controlMargin = 7.0, panelMargin = 6.0
  private let inset = 22.0
  private var backing: Double { feed.items.isEmpty && feed.placeholder.isEmpty && !feed.hovering ? 0.05 : 0.78 }
  private func rows(_ height: Double) -> Int { max(1, Int((height - 28) / feed.lineHeight)) }
@@ -309,16 +327,21 @@ struct CaptionOverlay: View {
     .frame(maxHeight: .infinity)
     .background(Color.black.opacity(backing), in: RoundedRectangle(cornerRadius: 16))
     .overlay(alignment: .topTrailing) {
-     if feed.hovering { OverlayControls(state: state, feed: feed).padding(7).transition(.opacity) }
+     if feed.hovering {
+      Group {
+       if state.clickThrough { ClickThroughBadge { state.clickThrough = false } } else { OverlayControls(state: state, feed: feed) }
+      }
+      .padding(Self.controlMargin).transition(.opacity)
+     }
     }
     .overlay(alignment: .bottomTrailing) {
-     if feed.hovering { ResizeGrip().transition(.opacity) }
+     if feed.hovering, !state.clickThrough { ResizeGrip().transition(.opacity) }
     }
     .animation(.easeOut(duration: 0.14), value: feed.hovering)
     .onAppear { feed.configure(width: geometry.size.width - inset * 2) }
     .onChange(of: geometry.size.width) { feed.configure(width: geometry.size.width - inset * 2) }
   }
-  .padding(6)
+  .padding(Self.panelMargin)
   .help("Drag to move. Resize from an edge or the corner.")
  }
 }

@@ -13,7 +13,7 @@ import ShortcutCore
  @Published var status = "Download a model to get started."
  @Published var highlightWords: Bool { didSet { UserDefaults.standard.set(highlightWords, forKey: "highlightWords"); feed.highlight = highlightWords } }
  @Published var updateSpeed: UpdateSpeed { didSet { UserDefaults.standard.set(updateSpeed.rawValue, forKey: "updateSpeed"); inference?.setSpeed(updateSpeed) } }
- @Published var clickThrough: Bool { didSet { UserDefaults.standard.set(clickThrough, forKey: "clickThrough"); overlay?.ignoresMouseEvents = clickThrough; if clickThrough { feed.hovering = false } } }
+ @Published var clickThrough: Bool { didSet { UserDefaults.standard.set(clickThrough, forKey: "clickThrough"); watchPointer() } }
  @Published private(set) var shortcuts: ShortcutMap
  @Published private(set) var refusedShortcuts: [ShortcutAction] = []
  @Published var needsPermission = false
@@ -28,6 +28,7 @@ import ShortcutCore
  private var inference: Inference?
  private var download: ModelDownload?
  private var overlay: NSPanel?
+ private var pointerTimer: Timer?
  private var session = UUID()
  private var checked = false
  private var observers: [NSObjectProtocol] = []
@@ -127,13 +128,12 @@ import ShortcutCore
    panel.hasShadow = false; panel.isMovableByWindowBackground = true
    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
    let host = OverlayHost(rootView: CaptionOverlay(state: self, feed: feed))
-   host.onHover = { [weak self] inside in self?.feed.hovering = inside }
+   host.onHover = { [weak self] inside in if self?.clickThrough == false { self?.feed.hovering = inside } }
    let resizer = OverlayResizer()
    resizer.onFinish = { [weak self] in self?.saveOverlayFrame() }
    let content = NSView()
    for view in [host, resizer] { view.autoresizingMask = [.width, .height]; content.addSubview(view) }
    panel.contentView = content
-   panel.ignoresMouseEvents = clickThrough
    panel.minSize = NSSize(width: 400, height: 90)
    if !panel.setFrameUsingName("CaptionOverlay") { place(panel) }
    for name in [NSWindow.didMoveNotification, NSWindow.didEndLiveResizeNotification] {
@@ -142,8 +142,33 @@ import ShortcutCore
     })
    }
    overlay = panel
+   watchPointer()
   }
   overlay?.orderFrontRegardless()
+ }
+ // A panel that ignores the mouse can't see it either, and an event monitor misses movement
+ // while this app is frontmost, so the pointer is polled, and only while clicks pass through.
+ private func watchPointer() {
+  pointerTimer?.invalidate(); pointerTimer = nil
+  guard let overlay else { return }
+  overlay.ignoresMouseEvents = clickThrough
+  guard clickThrough else { return }
+  let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.followPointer() } }
+  timer.tolerance = 0.03
+  RunLoop.main.add(timer, forMode: .common)
+  pointerTimer = timer
+  followPointer()
+ }
+ // Clicks land only while the pointer is on the badge, and pass through everywhere else.
+ private func followPointer() {
+  guard let overlay else { return }
+  let pointer = NSEvent.mouseLocation, frame = overlay.frame
+  let inside = overlay.isVisible && frame.contains(pointer)
+  if feed.hovering != inside { feed.hovering = inside }
+  let margin = CaptionOverlay.panelMargin + CaptionOverlay.controlMargin, size = ClickThroughBadge.size
+  let badge = NSRect(x: frame.maxX - margin - size.width, y: frame.maxY - margin - size.height, width: size.width, height: size.height)
+  let takesClicks = inside && badge.contains(pointer)
+  if overlay.ignoresMouseEvents == takesClicks { overlay.ignoresMouseEvents = !takesClicks }
  }
  func hideOverlay() { overlay?.orderOut(nil) }
  private func place(_ panel: NSPanel) {
