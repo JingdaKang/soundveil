@@ -147,6 +147,8 @@ export component CaptionOverlay inherits Window {
             }
 
             EdgeHandles {
+                width: parent.width;
+                height: parent.height;
                 ink: CaptionLook.text.with-alpha(0.45);
                 opacity: drag.has-hover ? 1 : 0;
                 animate opacity { duration: 140ms; }
