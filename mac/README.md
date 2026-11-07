@@ -40,7 +40,7 @@ Use **Open model folder** to install compatible GGML files manually or remove th
 
 ## Settings and shortcuts
 
-Open **Soundveil → Settings** or the gear in the main window.
+Open **Soundveil → Settings** or the gear in the main window. If you close the main window, click Soundveil in the Dock to bring it back.
 
 **Update speed** sets how often captions refresh, so you can suit your own Mac. A faster rate means less delay and more GPU and battery use. Automatic rests as long as each pass took, which keeps the GPU under about half load on any Mac, and slows down further in Low Power Mode or when the Mac is hot. A fixed choice is always honored. The change applies at once, even while captions are running.
 
