@@ -2,6 +2,8 @@ AGENTS.md
 Info.plist
 Package.swift
 README.md
+Resources/InfoPlist.xcstrings
+Resources/Localizable.xcstrings
 Sources/CWhisperBridge/Bridge.c
 Sources/CWhisperBridge/include/Bridge.h
 Sources/CaptionCore/Expressive.swift
@@ -11,6 +13,7 @@ Sources/CaptionCore/Rolling.swift
 Sources/Soundveil/App.swift
 Sources/Soundveil/Capture.swift
 Sources/Soundveil/Inference.swift
+Sources/Soundveil/Language.swift
 Sources/Soundveil/Models.swift
 Sources/ShortcutCore/Shortcuts.swift
 Sources/OverlayCore/CaptionStyle.swift
@@ -31,12 +34,14 @@ Tests/CaptionCoreTests/RollingTests.swift
 Tests/OverlayCoreTests/CaptionStyleTests.swift
 Tests/OverlayCoreTests/ResizeTests.swift
 Tests/ShortcutCoreTests/ShortcutTests.swift
+Tests/StringCatalogTests/StringCatalogTests.swift
 Tests/UpdateCoreTests/ReleaseTests.swift
 VALIDATION.md
 scripts/build.sh
 scripts/package-dmg.sh
 scripts/release.sh
 scripts/setup-signing.sh
+scripts/sync-strings.sh
 scripts/test.sh
 FILES.txt
 dist/Soundveil.app/ (generated application bundle)

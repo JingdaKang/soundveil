@@ -19,6 +19,8 @@ parts of the project relate.
 - `Tests/UpdateCoreTests`: update-check unit tests.
 - `Tests/ShortcutCoreTests`: shortcut unit tests.
 - `Tests/OverlayCoreTests`: caption style and overlay resize unit tests.
+- `Tests/StringCatalogTests`: checks that every language has every string.
+- `Resources`: string catalogs, the one source of interface text in every language.
 
 ## Build and validation
 
@@ -51,3 +53,20 @@ The overlay panel never takes focus while captions run behind Chrome, so SwiftUI
 system tooltips don't work there: use tracking areas, and label controls on the overlay itself.
 Don't cover the panel with a view that sets `mouseDownCanMoveWindow` to false. AppKit won't drag
 the window from anywhere such a view sits, even if the view declines the click.
+
+## Interface languages
+
+Every string a person reads comes from `Resources/Localizable.xcstrings`. English text is the key.
+`Text("...")` and other SwiftUI literals are found automatically. Anything held in a `String`,
+including status lines, errors, alerts, and text in the pure modules, needs `String(localized:)`.
+Use `Text(verbatim:)` for text that must not change. Caption text and the preview sample in
+Settings stay in English, because captions are English. Format numbers and percentages with
+`.formatted`, so they follow the language.
+
+After adding or changing text, run `./scripts/sync-strings.sh`, translate the new entries in every
+language, then run `./scripts/test.sh`. It fails if any language misses a string or a placeholder.
+
+To add a language, add its translations to both catalogs. The build makes its `.lproj` folder, and
+it appears in the Settings picker with no code change. Reuse the words the catalog already has for
+overlay, captions, and click-through, and macOS's own names for its settings. Check long languages
+such as German for clipped text.
