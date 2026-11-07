@@ -7,9 +7,7 @@
 use crate::settings::Frame;
 use crate::{CaptionOverlay, pointer};
 use slint::winit_030::winit::dpi::PhysicalSize;
-use slint::winit_030::winit::event::{
-    ElementState, MouseButton, WindowEvent as NativeEvent,
-};
+use slint::winit_030::winit::event::{ElementState, MouseButton, WindowEvent as NativeEvent};
 use slint::winit_030::winit::window::{ResizeDirection, Window as NativeWindow};
 use slint::winit_030::{EventResult, WinitWindowAccessor, winit};
 use slint::{ComponentHandle, LogicalPosition, LogicalSize, PhysicalPosition, Timer, TimerMode};

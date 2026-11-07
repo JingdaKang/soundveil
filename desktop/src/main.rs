@@ -27,8 +27,8 @@ use overlay::Overlay;
 use settings::Settings;
 use slint::{ComponentHandle, Model as _, ModelRc, SharedString, VecModel, Weak};
 use soundveil_core::{
-    CaptionPreset, CaptionStyle, CaptionUpdate, Held, Keyboard, Model, ResizeEdges, ResizeZones, ShortcutAction,
-    ShortcutMap, UpdateSpeed,
+    CaptionPreset, CaptionStyle, CaptionUpdate, Held, Keyboard, Model, ResizeEdges, ResizeZones,
+    ShortcutAction, ShortcutMap, UpdateSpeed,
 };
 use std::path::PathBuf;
 use std::cell::{Cell, OnceCell, RefCell};
@@ -820,7 +820,9 @@ fn connect_appearance(ui: &MainWindow) {
         let weak = ui.as_weak();
         move |index| {
             if let Some(ui) = weak.upgrade() {
-                change_style(&ui, |style| *style = CaptionPreset::ALL[index as usize].style);
+                change_style(&ui, |style| {
+                    *style = CaptionPreset::ALL[index as usize].style
+                });
                 save(&ui);
             }
         }
