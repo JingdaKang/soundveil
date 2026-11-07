@@ -938,6 +938,26 @@ mod snapshot {
                 });
             });
         }
+        // Puts words on screen, to check how they look without a model.
+        if let Ok(text) = std::env::var("SOUNDVEIL_WORDS") {
+            let committed = text
+                .split_whitespace()
+                .map(|word| soundveil_core::Word {
+                    text: word.into(),
+                    start: 0.0,
+                    end: 0.0,
+                })
+                .collect();
+            receive(
+                ui,
+                CaptionUpdate {
+                    committed,
+                    tentative: None,
+                    stable: 0,
+                    sentences: Vec::new(),
+                },
+            );
+        }
         // Adds history lines quickly, to check the list without a long recording.
         if let Some(lines) = std::env::var("SOUNDVEIL_FILL")
             .ok()
