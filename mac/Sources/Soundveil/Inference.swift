@@ -20,7 +20,7 @@ final class Inference: @unchecked Sendable {
   try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
    queue.async {
     self.recognizer = Recognizer(path: path)
-    if self.recognizer == nil { continuation.resume(throwing: AppError.message("Cannot load model. Check the download and available memory.")) }
+    if self.recognizer == nil { continuation.resume(throwing: AppError.message(String(localized: "Cannot load model. Check the download and available memory."))) }
     else { continuation.resume() }
    }
   }
@@ -57,13 +57,14 @@ final class Inference: @unchecked Sendable {
    let interval = transcriber.step
    lock.unlock()
    guard publish else { continue }
-   if words == nil { onStatus?("Recognition failed. Stop and start again, or choose another model."); continue }
+   if words == nil { onStatus?(String(localized: "Recognition failed. Stop and start again, or choose another model.")); continue }
    onUpdate?(update)
    let now = Date()
    if now.timeIntervalSince(lastStatus) >= 1 {
     lastStatus = now
-    let coverage = skipped >= 1 ? String(format: " · %.0f s skipped", skipped) : ""
-    onStatus?(String(format: "Listening · about %.1f s behind", took + interval / 2) + coverage)
+    let delay = (took + interval / 2).formatted(.number.precision(.fractionLength(1)))
+    let lost = skipped.formatted(.number.precision(.fractionLength(0)))
+    onStatus?(skipped >= 1 ? String(localized: "Listening · about \(delay) s behind · \(lost) s skipped") : String(localized: "Listening · about \(delay) s behind"))
    }
   }
  }
@@ -81,7 +82,7 @@ enum AppError: LocalizedError {
  var errorDescription: String? {
   switch self {
   case .message(let text): return text
-  case .permission: return "Soundveil can't record audio yet. Turn it on in Privacy Settings, then reopen Soundveil."
+  case .permission: return String(localized: "Soundveil can't record audio yet. Turn it on in Privacy Settings, then reopen Soundveil.")
   }
  }
 }

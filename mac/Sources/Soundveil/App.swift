@@ -12,7 +12,7 @@ import OverlayCore
  @Published var level: Float = 0
  @Published var fontSize: Double { didSet { UserDefaults.standard.set(fontSize, forKey: "captionSize"); feed.fontSize = fontSize } }
  @Published var captionStyle: CaptionStyle { didSet { UserDefaults.standard.set(captionStyle.encoded(), forKey: "captionStyle"); feed.style = captionStyle } }
- @Published var status = "Download a model to get started."
+ @Published var status = String(localized: "Download a model to get started.")
  @Published var highlightWords: Bool { didSet { UserDefaults.standard.set(highlightWords, forKey: "highlightWords"); feed.highlight = highlightWords } }
  @Published var updateSpeed: UpdateSpeed { didSet { UserDefaults.standard.set(updateSpeed.rawValue, forKey: "updateSpeed"); inference?.setSpeed(updateSpeed) } }
  @Published var clickThrough: Bool { didSet { UserDefaults.standard.set(clickThrough, forKey: "clickThrough"); watchPointer() } }
@@ -72,10 +72,10 @@ import OverlayCore
  }
  func refresh() {
   installed = model.exists
-  if !listening, !busy, !downloading { status = installed ? "Ready. Play a video in Chrome, then start captions." : "Download a model to get started." }
+  if !listening, !busy, !downloading { status = installed ? String(localized: "Ready. Play a video in Chrome, then start captions.") : String(localized: "Download a model to get started.") }
  }
  func downloadModel() {
-  downloading = true; progress = 0; status = "Downloading \(model.name)…"
+  downloading = true; progress = 0; status = String(localized: "Downloading \(model.name)…")
   download = ModelDownload(model: model, progress: { value in Task { @MainActor in self.progress = value } }, completion: { error in
    Task { @MainActor in self.downloading = false; self.refresh(); if let error { self.status = error }; self.download = nil }
   }); download?.start()
@@ -83,8 +83,8 @@ import OverlayCore
  func cancelDownload() { download?.cancel() }
  func start() async {
   guard !busy, !listening else { return }
-  busy = true; needsPermission = false; status = "Loading the model. The first run can take up to a minute…"; history = []
-  feed.reset(placeholder: "Waiting for speech…")
+  busy = true; needsPermission = false; status = String(localized: "Loading the model. The first run can take up to a minute…"); history = []
+  feed.reset(placeholder: String(localized: "Waiting for speech…"))
   session = UUID(); let id = session
   let engine = Inference(); inference = engine
   engine.setSpeed(updateSpeed)
@@ -96,7 +96,7 @@ import OverlayCore
   engine.onStatus = { text in Task { @MainActor in if self.session == id { self.status = text } } }
   do {
    try await engine.load(path: model.file.path)
-   status = "Requesting screen and system audio permission…"
+   status = String(localized: "Requesting screen and system audio permission…")
    let capture = Capture(); self.capture = capture
    capture.onEvents = { [weak engine] in engine?.submit($0) }
    capture.onLevel = { level in Task { @MainActor in if self.session == id { self.level = level } } }
@@ -104,7 +104,7 @@ import OverlayCore
     guard self.session == id else { return }; await self.stop(); self.status = message
    }}
    try await capture.start(system: system, threshold: Float(pow(10, vadDB/20)))
-   listening = true; busy = false; status = "Listening · play a video in Chrome"; showOverlay()
+   listening = true; busy = false; status = String(localized: "Listening · play a video in Chrome"); showOverlay()
   } catch {
    await capture?.stop(); capture = nil; _ = await engine.stop(); inference = nil
    if case AppError.permission = error { needsPermission = true }
@@ -119,10 +119,10 @@ import OverlayCore
  func stop() async {
   guard !busy else { return }
   busy = true; listening = false; level = 0; session = UUID()
-  status = "Stopping…"
+  status = String(localized: "Stopping…")
   await capture?.stop(); capture = nil
   if let update = await inference?.stop() { receive(update) }
-  inference = nil; busy = false; status = "Stopped"
+  inference = nil; busy = false; status = String(localized: "Stopped")
  }
  func showOverlay() {
   if overlay == nil {
@@ -208,14 +208,14 @@ import OverlayCore
    update = try await Updates.check()
    guard manual else { return }
    if let update {
-    alert.messageText = "Soundveil \(update.version) is available"
-    alert.informativeText = "You have \(Updates.current). Download the disk image, then replace Soundveil in Applications."
-    alert.addButton(withTitle: "Download"); alert.addButton(withTitle: "Later")
+    alert.messageText = String(localized: "Soundveil \(update.version.description) is available")
+    alert.informativeText = String(localized: "You have \(Updates.current). Download the disk image, then replace Soundveil in Applications.")
+    alert.addButton(withTitle: String(localized: "Download")); alert.addButton(withTitle: String(localized: "Later"))
     if alert.runModal() == .alertFirstButtonReturn { openUpdate() }
-   } else { alert.messageText = "Soundveil \(Updates.current) is up to date"; _ = alert.runModal() }
+   } else { alert.messageText = String(localized: "Soundveil \(Updates.current) is up to date"); _ = alert.runModal() }
   } catch {
    guard manual else { return }
-   alert.messageText = "Couldn't check for updates"; alert.informativeText = error.localizedDescription; _ = alert.runModal()
+   alert.messageText = String(localized: "Couldn't check for updates"); alert.informativeText = error.localizedDescription; _ = alert.runModal()
   }
  }
  func openUpdate() { if let update { NSWorkspace.shared.open(update.download ?? update.page) } }
@@ -261,7 +261,7 @@ struct ContentView: View {
  var body: some View {
   VStack(alignment: .leading, spacing: 16) {
    HStack {
-    Text("Soundveil").font(.largeTitle.bold()); Spacer(); Text("ON DEVICE · ENGLISH").font(.caption).foregroundStyle(.secondary)
+    Text(verbatim: "Soundveil").font(.largeTitle.bold()); Spacer(); Text("ON DEVICE · ENGLISH").font(.caption).foregroundStyle(.secondary)
     SettingsLink { Image(systemName: "gearshape") }.help("Settings").accessibilityLabel("Settings")
    }
    Text("Live captions for Chrome videos and streams. Audio stays on this Mac.").foregroundStyle(.secondary)
@@ -284,10 +284,10 @@ struct ContentView: View {
    HStack {
     Text("Quiet speech threshold")
     Slider(value: $state.vadDB, in: -65 ... -35, step: 1).disabled(state.listening || state.busy)
-    Text("\(Int(state.vadDB)) dB").monospacedDigit()
+    Text(verbatim: "\(Int(state.vadDB)) dB").monospacedDigit()
     ProgressView(value: min(1, Double(state.level) * 10)).frame(width: 60).help("Captured audio level")
    }.help("Lower the threshold for quiet speech. Higher sensitivity also admits more noise and music.")
-   HStack { Text("Caption size"); Slider(value: $state.fontSize, in: 18...48, step: 1); Text("\(Int(state.fontSize)) pt").monospacedDigit() }
+   HStack { Text("Caption size"); Slider(value: $state.fontSize, in: 18...48, step: 1); Text(verbatim: "\(Int(state.fontSize)) pt").monospacedDigit() }
    HStack {
     Text(state.status).font(.callout).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
     if state.needsPermission {

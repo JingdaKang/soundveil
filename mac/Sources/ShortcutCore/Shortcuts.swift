@@ -4,13 +4,13 @@ public enum ShortcutAction: String, CaseIterable, Codable, Identifiable, Sendabl
  public var id: String { rawValue }
  public var title: String {
   switch self {
-  case .toggleCaptions: return "Start or stop captions"
-  case .toggleOverlay: return "Show or hide overlay"
-  case .toggleExpanded: return "Expand or collapse overlay"
-  case .largerText: return "Larger text"
-  case .smallerText: return "Smaller text"
-  case .toggleClickThrough: return "Click through overlay"
-  case .resetOverlay: return "Reset overlay"
+  case .toggleCaptions: return String(localized: "Start or stop captions")
+  case .toggleOverlay: return String(localized: "Show or hide overlay")
+  case .toggleExpanded: return String(localized: "Expand or collapse overlay")
+  case .largerText: return String(localized: "Larger text")
+  case .smallerText: return String(localized: "Smaller text")
+  case .toggleClickThrough: return String(localized: "Click through overlay")
+  case .resetOverlay: return String(localized: "Reset overlay")
   }
  }
 }

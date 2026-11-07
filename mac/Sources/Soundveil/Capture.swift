@@ -19,13 +19,13 @@ final class Capture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
   gate.threshold = threshold
   // Include off-screen windows: Chrome is often on another Space or full screen.
   let content = try await permitted { try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false) }
-  guard let display = content.displays.first else { throw AppError.message("No display is available for audio capture.") }
+  guard let display = content.displays.first else { throw AppError.message(String(localized: "No display is available for audio capture.")) }
   let filter: SCContentFilter
   if system {
    filter = SCContentFilter(display: display, excludingApplications: content.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }, exceptingWindows: [])
   } else {
    let apps = content.applications.filter { $0.bundleIdentifier == "com.google.Chrome" || $0.bundleIdentifier.hasPrefix("com.google.Chrome.") }
-   guard !apps.isEmpty else { throw AppError.message("Open Chrome and play a video, then start captions.") }
+   guard !apps.isEmpty else { throw AppError.message(String(localized: "Open Chrome and play a video, then start captions.")) }
    filter = SCContentFilter(display: display, including: apps, exceptingWindows: [])
   }
   let config = SCStreamConfiguration()
@@ -67,7 +67,7 @@ final class Capture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
   guard let input = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(sampleBuffer.numSamples)) else { return }
   input.frameLength = input.frameCapacity
   let status = CMSampleBufferCopyPCMDataIntoAudioBufferList(sampleBuffer, at: 0, frameCount: Int32(input.frameLength), into: input.mutableAudioBufferList)
-  guard status == noErr else { onError?("Cannot read captured PCM audio (\(status))."); return }
+  guard status == noErr else { onError?(String(localized: "Cannot read captured PCM audio (\(status)).")); return }
   let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false)!
   if inputFormat != format { converter = AVAudioConverter(from: format, to: target); inputFormat = format }
   guard let converter, let output = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: AVAudioFrameCount(Double(input.frameLength) * 16000 / format.sampleRate) + 256) else { return }

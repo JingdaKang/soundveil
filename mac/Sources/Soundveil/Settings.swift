@@ -35,8 +35,8 @@ struct ShortcutRecorder: View {
   monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
    if event.keyCode == 53 { finish(); return nil } // Escape cancels.
    let pressed = shortcut(from: event)
-   if !pressed.isAllowed { note = "Include ⌘, ⌃, or ⌥, or use a function key."; return nil }
-   if let other = state.shortcuts.action(using: pressed, except: action) { note = "Already used for \"\(other.title)\"."; return nil }
+   if !pressed.isAllowed { note = String(localized: "Include ⌘, ⌃, or ⌥, or use a function key."); return nil }
+   if let other = state.shortcuts.action(using: pressed, except: action) { note = String(localized: "Already used for \"\(other.title)\"."); return nil }
    state.setShortcut(pressed, for: action); finish()
    return nil
   }
@@ -45,7 +45,7 @@ struct ShortcutRecorder: View {
   LabeledContent(action.title) {
    VStack(alignment: .trailing, spacing: 3) {
     HStack(spacing: 6) {
-     Button(recording ? "Type shortcut…" : state.shortcuts.bindings[action]?.label ?? "Record") { recording ? finish() : record() }
+     Button(recording ? String(localized: "Type shortcut…") : state.shortcuts.bindings[action]?.label ?? String(localized: "Record")) { recording ? finish() : record() }
       .frame(minWidth: 110).monospacedDigit()
      Button { state.setShortcut(nil, for: action) } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
       .buttonStyle(.plain).help("Remove shortcut").accessibilityLabel("Remove shortcut for \(action.title)")
@@ -92,7 +92,7 @@ private struct StyleTile: View {
     ZStack {
      CaptionBackdrop()
      RoundedRectangle(cornerRadius: 5).fill(preset.style.background.color.opacity(preset.style.backgroundOpacity)).padding(5)
-     Text("Aa").font(.system(size: 17, weight: .semibold)).foregroundStyle(preset.style.text.color).modifier(CaptionTextLook(style: preset.style))
+     Text(verbatim: "Aa").font(.system(size: 17, weight: .semibold)).foregroundStyle(preset.style.text.color).modifier(CaptionTextLook(style: preset.style))
     }
     .frame(height: 46).clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.15), lineWidth: selected ? 2 : 1))
@@ -105,14 +105,14 @@ private struct StyleTile: View {
  }
 }
 private struct OpacityRow: View {
- let title: String
+ let title: LocalizedStringKey
  @Binding var value: Double
  let range: ClosedRange<Double>
  var body: some View {
   LabeledContent(title) {
    HStack {
     Slider(value: $value, in: range, step: 0.01).labelsHidden().accessibilityLabel(title)
-    Text("\(Int((value * 100).rounded()))%").monospacedDigit().frame(width: 40, alignment: .trailing)
+    Text(value.formatted(.percent.precision(.fractionLength(0)))).monospacedDigit().frame(width: 48, alignment: .trailing)
    }
    .frame(width: 240)
   }

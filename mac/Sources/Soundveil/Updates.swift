@@ -11,8 +11,8 @@ enum Updates {
   let (data, response) = try await URLSession.shared.data(for: request)
   let code = (response as? HTTPURLResponse)?.statusCode ?? 0
   if code == 404 { return nil } // Nothing has been published yet.
-  guard code == 200 else { throw AppError.message("GitHub returned HTTP \(code). Try again later.") }
-  guard let release = Release(github: data) else { throw AppError.message("The latest GitHub release has no readable version.") }
+  guard code == 200 else { throw AppError.message(String(localized: "GitHub returned HTTP \(code). Try again later.")) }
+  guard let release = Release(github: data) else { throw AppError.message(String(localized: "The latest GitHub release has no readable version.")) }
   return release.isNewer(than: current) ? release : nil
  }
 }

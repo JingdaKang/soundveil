@@ -16,7 +16,7 @@ import OverlayCore
   let x: Double
  }
  @Published private(set) var items: [Item] = []
- @Published var placeholder = "Your live captions appear here"
+ @Published var placeholder = String(localized: "Your live captions appear here")
  @Published var fontSize: Double = 28 { didSet { if fontSize != oldValue { widths = [:]; relayout() } } }
  @Published var highlight = true { didSet { if highlight != oldValue { widths = [:]; relayout() } } }
  @Published var style = CaptionStyle.standard
@@ -243,11 +243,11 @@ struct OverlayControls: View {
  var body: some View {
   VStack(alignment: .trailing, spacing: 4) {
    HStack(spacing: 0) {
-    button("textformat.size.smaller", "Smaller text") { state.fontSize = max(18, state.fontSize - 2) }
-    button("textformat.size.larger", "Larger text") { state.fontSize = min(48, state.fontSize + 2) }
-    button(feed.expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right", feed.expanded ? "Collapse" : "Expand") { state.toggleExpanded() }
-    button("cursorarrow.rays", "Let clicks pass through") { state.clickThrough = true }
-    button("xmark", "Hide overlay") { state.hideOverlay() }
+    button("textformat.size.smaller", String(localized: "Smaller text")) { state.fontSize = max(18, state.fontSize - 2) }
+    button("textformat.size.larger", String(localized: "Larger text")) { state.fontSize = min(48, state.fontSize + 2) }
+    button(feed.expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right", feed.expanded ? String(localized: "Collapse") : String(localized: "Expand")) { state.toggleExpanded() }
+    button("cursorarrow.rays", String(localized: "Let clicks pass through")) { state.clickThrough = true }
+    button("xmark", String(localized: "Hide overlay")) { state.hideOverlay() }
    }
    .padding(.horizontal, 3).background(Color.black.opacity(0.72), in: Capsule())
    .overlay(Capsule().strokeBorder(Color.white.opacity(0.14)))
@@ -261,15 +261,18 @@ struct OverlayControls: View {
 }
 // While clicks pass through, this is the one spot on the overlay that still takes a click.
 struct ClickThroughBadge: View {
- static let size = CGSize(width: 182, height: 30)
+ private static let title = String(localized: "Turn off click-through")
+ private static let font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+ // Measured, because the overlay's clickable spot has to match it in every language.
+ static let size = CGSize(width: ceil(NSAttributedString(string: title, attributes: [.font: font]).size().width) + 52, height: 30)
  let action: () -> Void
  var body: some View {
   Button(action: action) {
    HStack(spacing: 6) {
     Image(systemName: "cursorarrow.rays")
-    Text("Turn off click-through")
+    Text(Self.title)
    }
-   .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.white)
+   .font(Font(Self.font)).foregroundStyle(Color.white)
    .frame(width: Self.size.width, height: Self.size.height).contentShape(Capsule())
   }
   .buttonStyle(.plain).background(Color.black.opacity(0.72), in: Capsule())

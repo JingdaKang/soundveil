@@ -46,20 +46,20 @@ public enum UpdateSpeed: String, CaseIterable, Identifiable, Sendable {
  public var id: String { rawValue }
  public var title: String {
   switch self {
-  case .auto: return "Automatic"
-  case .fastest: return "Fastest · every 0.2 s"
-  case .balanced: return "Balanced · every 0.4 s"
-  case .efficient: return "Efficient · every 0.75 s"
-  case .saver: return "Battery saver · every 1.5 s"
+  case .auto: return String(localized: "Automatic")
+  case .fastest: return String(localized: "Fastest · every 0.2 s")
+  case .balanced: return String(localized: "Balanced · every 0.4 s")
+  case .efficient: return String(localized: "Efficient · every 0.75 s")
+  case .saver: return String(localized: "Battery saver · every 1.5 s")
   }
  }
  public var detail: String {
   switch self {
-  case .auto: return "Keeps the GPU under about half load on this Mac, and slows down in Low Power Mode or when it's hot."
-  case .fastest: return "Lowest delay. Uses the most GPU and battery, and text changes more as it settles."
-  case .balanced: return "A good default on most Macs."
-  case .efficient: return "Much less GPU use, with words arriving a little later."
-  case .saver: return "Lowest GPU use. Words arrive in small groups."
+  case .auto: return String(localized: "Keeps the GPU under about half load on this Mac, and slows down in Low Power Mode or when it's hot.")
+  case .fastest: return String(localized: "Lowest delay. Uses the most GPU and battery, and text changes more as it settles.")
+  case .balanced: return String(localized: "A good default on most Macs.")
+  case .efficient: return String(localized: "Much less GPU use, with words arriving a little later.")
+  case .saver: return String(localized: "Lowest GPU use. Words arrive in small groups.")
   }
  }
  var seconds: Double? {

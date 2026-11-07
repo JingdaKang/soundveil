@@ -32,9 +32,9 @@ final class ModelDownload: NSObject, URLSessionDownloadDelegate, @unchecked Send
  }
  func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
   do {
-   guard (downloadTask.response as? HTTPURLResponse)?.statusCode == 200 else { throw AppError.message("Model server returned an error. Please retry.") }
+   guard (downloadTask.response as? HTTPURLResponse)?.statusCode == 200 else { throw AppError.message(String(localized: "Model server returned an error. Please retry.")) }
    let file = try FileHandle(forReadingFrom: location); defer { try? file.close() }
-   guard try file.read(upToCount: 4) == Data([0x6c,0x6d,0x67,0x67]) else { throw AppError.message("Downloaded file is not a GGML Whisper model.") }
+   guard try file.read(upToCount: 4) == Data([0x6c,0x6d,0x67,0x67]) else { throw AppError.message(String(localized: "Downloaded file is not a GGML Whisper model.")) }
    try FileManager.default.createDirectory(at: Model.directory, withIntermediateDirectories: true)
    try FileManager.default.moveItem(at: location, to: model.file)
    completion(nil)
