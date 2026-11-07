@@ -349,7 +349,21 @@ private func resizeCursor(for edges: ResizeEdges) -> NSCursor {
  if edges == .top || edges == .bottom { return .resizeUpDown }
  return .crosshair
 }
-// The visible hint for the bottom right corner. OverlayResizer takes the drag.
+// Shows where to grab. macOS may not show the resize cursor while another app is in front, and
+// captions usually run behind Chrome. OverlayResizer takes the drags.
+struct EdgeHandles: View {
+ let color: Color
+ private var across: some View { Capsule().fill(color.opacity(0.45)).frame(width: 34, height: 4) }
+ private var along: some View { Capsule().fill(color.opacity(0.45)).frame(width: 4, height: 34) }
+ var body: some View {
+  Color.clear
+   .overlay(alignment: .top) { across.padding(.top, 3) }
+   .overlay(alignment: .bottom) { across.padding(.bottom, 3) }
+   .overlay(alignment: .leading) { along.padding(.leading, 3) }
+   .overlay(alignment: .trailing) { along.padding(.trailing, 3) }
+   .allowsHitTesting(false)
+ }
+}
 struct ResizeGrip: View {
  let color: Color
  var body: some View {
@@ -383,6 +397,9 @@ struct CaptionOverlay: View {
      if feed.hovering, feed.style.backgroundOpacity < 0.2 {
       RoundedRectangle(cornerRadius: 16).strokeBorder(Color.gray.opacity(0.8)).allowsHitTesting(false).transition(.opacity)
      }
+    }
+    .overlay {
+     if feed.hovering, !state.clickThrough { EdgeHandles(color: feed.style.text.color).transition(.opacity) }
     }
     .overlay(alignment: .topTrailing) {
      if feed.hovering {
