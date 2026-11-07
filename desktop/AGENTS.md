@@ -68,8 +68,8 @@ The interface may only be touched on its own thread. Worker threads use
   where the pointer is only by watching it move, and it may have stopped before the badge began
   taking clicks.
 - Each window holds its own copy of the `CaptionLook` global, so `appearance.rs` sets both. The text
-  shadow is copies of the text, because Slint's `Text` has no shadow and its software renderer draws
-  no stroke. Slint has no color picker either, so colors are swatches and a hex field.
+  shadow is copies of the text, because Slint's `Text` has no shadow and its software renderer
+  ignores a stroke's width. Slint has no color picker either, so colors are swatches and a hex field.
 - Wayland with no X11 layer can't report the pointer, so the badge never shows there and the way out
   is the shortcut or Settings. Through the X11 layer the position may go stale while the pointer is
   over a window not using that layer, with the same result. Neither has been run.
