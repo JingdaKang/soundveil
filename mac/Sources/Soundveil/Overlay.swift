@@ -174,26 +174,58 @@ struct CaptionLines: View {
   .accessibilityValue(feed.items.suffix(30).map(\.text).joined(separator: " "))
  }
 }
-// Shown on hover only, so the default overlay stays nothing but text.
+// SwiftUI's onHover needs an active window, and the overlay never is one. A tracking area works
+// in any window, and returning nil from hitTest leaves clicks for the view it sits behind.
+final class HoverSensorView: NSView {
+ var onHover: ((Bool) -> Void)?
+ private var tracker: NSTrackingArea?
+ override func hitTest(_ point: NSPoint) -> NSView? { nil }
+ override func updateTrackingAreas() {
+  super.updateTrackingAreas()
+  guard tracker == nil else { return }
+  let area = NSTrackingArea(rect: .zero, options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect], owner: self)
+  addTrackingArea(area); tracker = area
+ }
+ override func mouseEntered(with event: NSEvent) { onHover?(true) }
+ override func mouseExited(with event: NSEvent) { onHover?(false) }
+}
+struct HoverSensor: NSViewRepresentable {
+ let onHover: (Bool) -> Void
+ func makeNSView(context: Context) -> HoverSensorView { let view = HoverSensorView(); view.onHover = onHover; return view }
+ func updateNSView(_ view: HoverSensorView, context: Context) { view.onHover = onHover }
+}
+// Shown on hover only, so the default overlay stays nothing but text. System tooltips don't
+// appear on a panel that never takes focus, so each button names itself here instead.
 struct OverlayControls: View {
  @ObservedObject var state: AppState
  @ObservedObject var feed: CaptionFeed
+ @State private var hint: String?
  private func button(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {
   Button(action: action) {
    Image(systemName: symbol).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.white)
     .frame(width: 28, height: 26).contentShape(Rectangle())
-  }.buttonStyle(.plain).help(label).accessibilityLabel(label)
+  }.buttonStyle(.plain).accessibilityLabel(label)
+  .background(HoverSensor { inside in
+   if inside { hint = label } else if hint == label { hint = nil }
+  })
  }
  var body: some View {
-  HStack(spacing: 0) {
-   button("textformat.size.smaller", "Smaller text") { state.fontSize = max(18, state.fontSize - 2) }
-   button("textformat.size.larger", "Larger text") { state.fontSize = min(48, state.fontSize + 2) }
-   button(feed.expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right", feed.expanded ? "Collapse" : "Expand") { state.toggleExpanded() }
-   button("cursorarrow.rays", "Click through overlay") { state.clickThrough = true }
-   button("xmark", "Hide captions") { state.hideOverlay() }
+  VStack(alignment: .trailing, spacing: 4) {
+   HStack(spacing: 0) {
+    button("textformat.size.smaller", "Smaller text") { state.fontSize = max(18, state.fontSize - 2) }
+    button("textformat.size.larger", "Larger text") { state.fontSize = min(48, state.fontSize + 2) }
+    button(feed.expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right", feed.expanded ? "Collapse" : "Expand") { state.toggleExpanded() }
+    button("cursorarrow.rays", "Let clicks pass through") { state.clickThrough = true }
+    button("xmark", "Hide overlay") { state.hideOverlay() }
+   }
+   .padding(.horizontal, 3).background(Color.black.opacity(0.72), in: Capsule())
+   .overlay(Capsule().strokeBorder(Color.white.opacity(0.14)))
+   if let hint {
+    Text(hint).font(.system(size: 11, weight: .medium)).foregroundStyle(Color.white).lineLimit(1)
+     .padding(.horizontal, 9).frame(height: 20).background(Color.black.opacity(0.72), in: Capsule())
+     .allowsHitTesting(false)
+   }
   }
-  .padding(.horizontal, 3).background(Color.black.opacity(0.72), in: Capsule())
-  .overlay(Capsule().strokeBorder(Color.white.opacity(0.14)))
  }
 }
 // A borderless panel gets no resize edges from AppKit, so this view supplies them. It sits above
