@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import CaptionCore
+import OverlayCore
 
 // Words on screen. Updates arrive several times a second, so this stays apart from AppState
 // and the main window is not redrawn for each word. Confirmed words are placed once and
@@ -195,37 +196,73 @@ struct OverlayControls: View {
   .overlay(Capsule().strokeBorder(Color.white.opacity(0.14)))
  }
 }
-// Dragging resizes from the corner. The top-left stays put, as with any Mac window.
-final class ResizeGripView: NSView {
+// A borderless panel gets no resize edges from AppKit, so this view supplies them. It sits above
+// the captions and claims only the border: anywhere else a click reaches the buttons or moves
+// the panel. It stays in place during a drag, because the pointer can leave the panel at its
+// minimum size and the view has to be there for the mouse-up.
+final class OverlayResizer: NSView {
+ static let zones = ResizeZones(band: 12, corner: 28, grip: 32)
  var onFinish: (() -> Void)?
+ private var tracker: NSTrackingArea?
+ private var dragging: ResizeEdges = []
  private var startFrame = NSRect.zero
  private var startMouse = NSPoint.zero
  override var mouseDownCanMoveWindow: Bool { false }
  override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
- override func resetCursorRects() { addCursorRect(bounds, cursor: .crosshair) }
+ private func edges(at point: NSPoint) -> ResizeEdges { Self.zones.edges(at: point, in: bounds.size) }
+ private func edges(of event: NSEvent) -> ResizeEdges { edges(at: convert(event.locationInWindow, from: nil)) }
  private func screenPoint(_ event: NSEvent) -> NSPoint { window?.convertPoint(toScreen: event.locationInWindow) ?? .zero }
- override func mouseDown(with event: NSEvent) { startFrame = window?.frame ?? .zero; startMouse = screenPoint(event) }
+ override func hitTest(_ point: NSPoint) -> NSView? { edges(at: convert(point, from: superview)).isEmpty ? nil : self }
+ override func updateTrackingAreas() {
+  super.updateTrackingAreas()
+  guard tracker == nil else { return }
+  let area = NSTrackingArea(rect: .zero, options: [.activeAlways, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect], owner: self)
+  addTrackingArea(area); tracker = area
+ }
+ override func mouseMoved(with event: NSEvent) { if dragging.isEmpty { resizeCursor(for: edges(of: event)).set() } }
+ override func mouseExited(with event: NSEvent) { if dragging.isEmpty { NSCursor.arrow.set() } }
+ override func mouseDown(with event: NSEvent) {
+  dragging = edges(of: event); startFrame = window?.frame ?? .zero; startMouse = screenPoint(event)
+ }
  override func mouseDragged(with event: NSEvent) {
-  guard let window else { return }
+  guard let window, !dragging.isEmpty else { return }
   let mouse = screenPoint(event)
-  let width = max(window.minSize.width, startFrame.width + mouse.x - startMouse.x)
-  let height = max(window.minSize.height, startFrame.height - (mouse.y - startMouse.y))
-  window.setFrame(NSRect(x: startFrame.minX, y: startFrame.maxY - height, width: width, height: height), display: true)
+  let frame = resizedFrame(startFrame, edges: dragging, dx: mouse.x - startMouse.x, dy: mouse.y - startMouse.y, minimum: window.minSize)
+  window.setFrame(frame, display: true)
  }
- override func mouseUp(with event: NSEvent) { onFinish?() }
- override func draw(_ dirtyRect: NSRect) {
-  NSColor.white.withAlphaComponent(0.55).setStroke()
-  for inset in [6.0, 11.0, 16.0] {
-   let path = NSBezierPath(); path.lineWidth = 1.6; path.lineCapStyle = .round
-   path.move(to: NSPoint(x: bounds.maxX - 5, y: inset - 1)); path.line(to: NSPoint(x: bounds.maxX - inset, y: 5 - 1))
-   path.stroke()
-  }
- }
+ override func mouseUp(with event: NSEvent) { dragging = []; onFinish?() }
 }
-struct ResizeGrip: NSViewRepresentable {
- let onFinish: () -> Void
- func makeNSView(context: Context) -> ResizeGripView { let view = ResizeGripView(); view.onFinish = onFinish; return view }
- func updateNSView(_ view: ResizeGripView, context: Context) { view.onFinish = onFinish }
+private func resizeCursor(for edges: ResizeEdges) -> NSCursor {
+ if edges.isEmpty { return .arrow }
+ if #available(macOS 15, *) {
+  let position: NSCursor.FrameResizePosition
+  switch edges {
+  case .left: position = .left
+  case .right: position = .right
+  case .top: position = .top
+  case .bottom: position = .bottom
+  case [.left, .top]: position = .topLeft
+  case [.right, .top]: position = .topRight
+  case [.left, .bottom]: position = .bottomLeft
+  default: position = .bottomRight
+  }
+  return .frameResize(position: position, directions: .all)
+ }
+ if edges == .left || edges == .right { return .resizeLeftRight }
+ if edges == .top || edges == .bottom { return .resizeUpDown }
+ return .crosshair
+}
+// The visible hint for the bottom right corner. OverlayResizer takes the drag.
+struct ResizeGrip: View {
+ var body: some View {
+  Path { path in
+   for (x, y) in [(10.0, 11.0), (15.0, 16.0), (20.0, 21.0)] {
+    path.move(to: CGPoint(x: 21, y: y)); path.addLine(to: CGPoint(x: x, y: 22))
+   }
+  }
+  .stroke(Color.white.opacity(0.55), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+  .frame(width: 26, height: 26).allowsHitTesting(false)
+ }
 }
 struct CaptionOverlay: View {
  @ObservedObject var state: AppState
@@ -243,7 +280,7 @@ struct CaptionOverlay: View {
      if feed.hovering { OverlayControls(state: state, feed: feed).padding(7).transition(.opacity) }
     }
     .overlay(alignment: .bottomTrailing) {
-     if feed.hovering { ResizeGrip { state.saveOverlayFrame() }.frame(width: 26, height: 26).transition(.opacity) }
+     if feed.hovering { ResizeGrip().transition(.opacity) }
     }
     .animation(.easeOut(duration: 0.14), value: feed.hovering)
     .onAppear { feed.configure(width: geometry.size.width - inset * 2) }

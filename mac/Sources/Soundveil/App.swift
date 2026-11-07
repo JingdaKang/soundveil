@@ -128,7 +128,11 @@ import ShortcutCore
    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
    let host = OverlayHost(rootView: CaptionOverlay(state: self, feed: feed))
    host.onHover = { [weak self] inside in self?.feed.hovering = inside }
-   panel.contentView = host
+   let resizer = OverlayResizer()
+   resizer.onFinish = { [weak self] in self?.saveOverlayFrame() }
+   let content = NSView()
+   for view in [host, resizer] { view.autoresizingMask = [.width, .height]; content.addSubview(view) }
+   panel.contentView = content
    panel.ignoresMouseEvents = clickThrough
    panel.minSize = NSSize(width: 400, height: 90)
    if !panel.setFrameUsingName("CaptionOverlay") { place(panel) }
