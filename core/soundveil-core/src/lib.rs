@@ -4,6 +4,7 @@
 //! Capture, inference, and drawing belong to each platform, so everything here can be
 //! tested without audio, a model, or a window.
 
+pub mod caption_style;
 pub mod expressive;
 pub mod model;
 pub mod pipeline;
@@ -12,6 +13,7 @@ pub mod rolling;
 pub mod shortcuts;
 pub mod tokens;
 
+pub use caption_style::{CaptionColor, CaptionPreset, CaptionStyle};
 pub use expressive::{WordStyle, cue_label, word_styles};
 pub use model::Model;
 pub use pipeline::{Caption, SpeechEvent, SpeechGate, Word};
