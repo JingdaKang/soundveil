@@ -1,5 +1,27 @@
 # Validation — 3 November 2026
 
+## Overlay changes — 7 November 2026, not released
+
+Checked on this Mac in a throwaway build under a test bundle id. All 90 unit tests pass.
+
+- Click-through: with the app in front and the real pointer, each button named itself on hover. The
+  click-through button showed **Turn off click-through** on the overlay. A click on the overlay
+  reached the window behind it, the badge hid when the pointer left and returned when it came back,
+  and clicking it restored the controls. After a restart with click-through still on, the badge
+  appeared with the pointer over the overlay and turned it off.
+- Resizing: each edge and the bottom right corner resized the overlay and left the opposite side in
+  place. The minimum width stopped a drag without moving the far side. Size and position returned
+  after a restart. Expand and collapse still work, and returned to the height set by hand.
+- Moving: dragging the middle moved the panel, matching the 0.1.2 build. An earlier version of this
+  change blocked it, which is why the resize views are thin strips.
+- Style: all five presets drew correctly in the preview. A custom text color from the system panel
+  reached the preview, cleared the preset selection, and was saved. A saved low-contrast style
+  returned after a restart and showed the warning. Text only drew a shadow on the overlay.
+
+Not checked: live captions in any new style, dragging the opacity sliders by hand (the test tool
+can't move any slider, including the existing Caption size one), and the resize cursor while another
+app is in front. The cursor changed at the left edge with the app in front.
+
 ## Release 0.1.2 — 7 November 2026
 
 - Fixes the main window. `Settings` was declared first, so a clean launch opened only Settings, and
