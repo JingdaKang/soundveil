@@ -38,6 +38,7 @@ export component TextShadow {
     in property <length> font-size;
     in property <int> font-weight;
     in property <TextVerticalAlignment> vertical-alignment: top;
+    in property <TextHorizontalAlignment> horizontal-alignment: left;
     in property <TextOverflow> overflow: clip;
     property <[{x: length, y: length, alpha: float}]> copies: [
         { x: 0px, y: 1px, alpha: 0.9 },
@@ -57,6 +58,7 @@ export component TextShadow {
         font-size: root.font-size;
         font-weight: root.font-weight;
         vertical-alignment: root.vertical-alignment;
+        horizontal-alignment: root.horizontal-alignment;
         overflow: root.overflow;
         wrap: no-wrap;
     }
@@ -108,6 +110,27 @@ component WordCell {
         font-size: root.text-size;
         font-weight: root.weight;
         wrap: no-wrap;
+    }
+}
+
+// One line that shows each kind of word, for judging a style before using it.
+export component CaptionSample inherits HorizontalLayout {
+    in property <float> size: 18;
+    spacing: root.size * 0.3px;
+    opacity: CaptionLook.style.text-opacity;
+    WordCell {
+        word: { text: "Captions look like this,", kind: 0, settled: true };
+        size: root.size;
+    }
+
+    WordCell {
+        word: { text: "whoa", kind: 1, settled: true };
+        size: root.size;
+    }
+
+    WordCell {
+        word: { text: "♪ music", kind: 2, settled: true };
+        size: root.size;
     }
 }
 

@@ -27,7 +27,7 @@ use overlay::Overlay;
 use settings::Settings;
 use slint::{ComponentHandle, Model as _, ModelRc, SharedString, VecModel, Weak};
 use soundveil_core::{
-    CaptionStyle, CaptionUpdate, Held, Keyboard, Model, ResizeEdges, ResizeZones, ShortcutAction,
+    CaptionPreset, CaptionStyle, CaptionUpdate, Held, Keyboard, Model, ResizeEdges, ResizeZones, ShortcutAction,
     ShortcutMap, UpdateSpeed,
 };
 use std::path::PathBuf;
@@ -133,6 +133,15 @@ fn save(ui: &MainWindow) {
     if let Err(error) = settings.save() {
         ui.set_status(error.into());
     }
+}
+
+fn change_style(ui: &MainWindow, change: impl FnOnce(&mut CaptionStyle)) {
+    with_view(|view| {
+        let mut style = view.style.get();
+        change(&mut style);
+        view.style.set(style);
+        appearance::show(ui, &view.overlay.window, &style);
+    });
 }
 
 fn set_placeholder(ui: &MainWindow, text: &str) {
@@ -425,6 +434,7 @@ fn run_app(replay: Option<PathBuf>) -> Result<(), slint::PlatformError> {
     ui.set_words(view.captions.model());
     view.overlay.window.set_words(view.captions.model());
     view.overlay.window.set_size_points(settings.caption_size);
+    appearance::prepare(&ui);
     appearance::show(&ui, &view.overlay.window, &settings.caption_style);
     VIEW.with(|cell| cell.set(view).map_err(|_| ()).expect("one view"));
     connect_shortcuts(&ui, on_wayland);
@@ -494,6 +504,7 @@ fn run_app(replay: Option<PathBuf>) -> Result<(), slint::PlatformError> {
         }
     });
     connect_overlay(&ui);
+    connect_appearance(&ui);
     ui.on_toggle_captions({
         let (weak, shared) = (ui.as_weak(), shared.clone());
         move || {
@@ -803,6 +814,70 @@ fn export_history(ui: &MainWindow) {
     let _ = slint::spawn_local(saving);
 }
 
+fn connect_appearance(ui: &MainWindow) {
+    let settings = ui.global::<Appearance>();
+    settings.on_preset_chosen({
+        let weak = ui.as_weak();
+        move |index| {
+            if let Some(ui) = weak.upgrade() {
+                change_style(&ui, |style| *style = CaptionPreset::ALL[index as usize].style);
+                save(&ui);
+            }
+        }
+    });
+    settings.on_color_chosen({
+        let weak = ui.as_weak();
+        move |which, text| {
+            if let Some(ui) = weak.upgrade() {
+                change_style(&ui, |style| {
+                    appearance::choose_color(style, which, &text);
+                });
+                save(&ui);
+            }
+        }
+    });
+    settings.on_color_typed({
+        let weak = ui.as_weak();
+        move |which, text| {
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+            with_view(|view| {
+                let mut style = view.style.get();
+                if appearance::choose_color(&mut style, which, &text) {
+                    view.style.set(style);
+                    appearance::draw(&ui, &view.overlay.window, &style);
+                    save(&ui);
+                }
+            });
+        }
+    });
+    settings.on_fields_reset({
+        let weak = ui.as_weak();
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                change_style(&ui, |_| {});
+            }
+        }
+    });
+    settings.on_opacity_moved({
+        let weak = ui.as_weak();
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                change_style(&ui, |style| appearance::read_opacity(&ui, style));
+            }
+        }
+    });
+    settings.on_opacity_released({
+        let weak = ui.as_weak();
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                save(&ui);
+            }
+        }
+    });
+}
+
 fn connect_overlay(ui: &MainWindow) {
     let handle = || ui.as_weak();
     let act = |weak: Weak<MainWindow>, action: fn(&MainWindow)| {
@@ -862,6 +937,8 @@ mod snapshot {
                     "F9" => Key::F9.into(),
                     "Control" => Key::Control.into(),
                     "Escape" => Key::Escape.into(),
+                    "Backspace" => Key::Backspace.into(),
+                    "Return" => Key::Return.into(),
                     text => text.into(),
                 };
                 window.dispatch_event(WindowEvent::KeyPressed { text: text.clone() });

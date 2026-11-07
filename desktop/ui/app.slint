@@ -1,8 +1,8 @@
-import { AboutSlint, Button, ComboBox, ListView, Palette, ProgressIndicator, ScrollView, Slider, Spinner, Switch } from "std-widgets.slint";
-import { CaptionLook, CaptionWord, CaptionWords } from "captions.slint";
+import { AboutSlint, Button, ComboBox, LineEdit, ListView, Palette, ProgressIndicator, ScrollView, Slider, Spinner, Switch } from "std-widgets.slint";
+import { CaptionAppearance, CaptionLook, CaptionSample, CaptionWord, CaptionWords, TextShadow } from "captions.slint";
 
 export { CaptionOverlay } from "overlay.slint";
-export { CaptionLook, CaptionWord }
+export { CaptionAppearance, CaptionLook, CaptionWord }
 
 export struct HistoryLine {
     time: string,
@@ -14,6 +14,40 @@ export struct ShortcutRow {
     keys: string,
     // Another app already has these keys.
     taken: bool,
+}
+
+export struct StylePreset {
+    name: string,
+    look: CaptionAppearance,
+}
+
+export struct ColorSwatch {
+    value: color,
+    hex: string,
+}
+
+// The Appearance card's values. Which colors to use and whether they read well is decided in Rust.
+export global Appearance {
+    in property <[StylePreset]> presets;
+    in property <[ColorSwatch]> swatches;
+    // The preset that matches the current style, or -1.
+    in property <int> preset: -1;
+    in-out property <string> text-hex;
+    in-out property <string> background-hex;
+    in-out property <string> highlight-hex;
+    in-out property <float> background-opacity;
+    in-out property <float> text-opacity;
+    in property <float> lowest-text-opacity;
+    in property <bool> hard-to-read;
+    callback preset-chosen(int);
+    // Colors are numbered 0 text, 1 background, 2 highlight.
+    callback color-chosen(int, string);
+    // The hex may be half typed, and the field is left as it is either way.
+    callback color-typed(int, string);
+    // Puts every field back to what's in use.
+    callback fields-reset();
+    callback opacity-moved();
+    callback opacity-released();
 }
 
 global Theme {
@@ -358,6 +392,216 @@ component SwitchRow inherits VerticalLayout {
     }
 }
 
+// A stand-in for video, bright at one end and dark at the other, so that opacity has something
+// to reveal and a style can be judged against both.
+component CaptionBackdrop inherits Rectangle {
+    background: @linear-gradient(90deg, #f5d98c 0%, #80a8c9 50%, #1f2945 100%);
+}
+
+component StylePreview inherits CaptionBackdrop {
+    height: 76px;
+    border-radius: 8px;
+    clip: true;
+    accessible-role: image;
+    accessible-label: "Caption preview";
+    Rectangle {
+        width: sample.preferred-width + 28px;
+        height: sample.preferred-height + 18px;
+        border-radius: 10px;
+        background: CaptionLook.style.background.with-alpha(CaptionLook.style.background-opacity);
+        sample := CaptionSample {
+            width: self.preferred-width;
+            height: self.preferred-height;
+            size: 18;
+        }
+    }
+}
+
+component StyleTile {
+    in property <StylePreset> preset;
+    in property <bool> selected;
+    callback clicked <=> touch.clicked;
+    accessible-role: button;
+    accessible-label: root.preset.name;
+    accessible-checkable: true;
+    accessible-checked: root.selected;
+    accessible-action-default => {
+        touch.clicked();
+    }
+    VerticalLayout {
+        spacing: 5px;
+        Rectangle {
+            height: 46px;
+            CaptionBackdrop {
+                border-radius: 8px;
+                clip: true;
+                Rectangle {
+                    x: 5px;
+                    y: 5px;
+                    width: parent.width - 10px;
+                    height: parent.height - 10px;
+                    border-radius: 5px;
+                    background: root.preset.look.background.with-alpha(root.preset.look.background-opacity);
+                }
+
+                if root.preset.look.shadowed: TextShadow {
+                    width: parent.width;
+                    height: parent.height;
+                    text: "Aa";
+                    edge: root.preset.look.edge;
+                    font-size: 17px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "Aa";
+                    color: root.preset.look.text;
+                    font-size: 17px;
+                    font-weight: 600;
+                }
+            }
+
+            Rectangle {
+                border-radius: 8px;
+                border-width: root.selected ? 2px : 1px;
+                border-color: root.selected ? Palette.accent-background : Palette.border;
+            }
+        }
+
+        Text {
+            text: root.preset.name;
+            font-size: 11px;
+            color: Palette.foreground.with-alpha(root.selected ? 1 : 0.62);
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+component Swatch {
+    in property <ColorSwatch> swatch;
+    in property <bool> selected;
+    callback clicked <=> touch.clicked;
+    width: 22px;
+    height: 22px;
+    accessible-role: button;
+    accessible-label: root.swatch.hex;
+    accessible-action-default => {
+        touch.clicked();
+    }
+    Rectangle {
+        border-radius: self.width / 2;
+        border-width: 2px;
+        border-color: root.selected ? Palette.accent-background : transparent;
+    }
+
+    Rectangle {
+        width: 16px;
+        height: 16px;
+        border-radius: self.width / 2;
+        background: root.swatch.value;
+        border-width: 1px;
+        border-color: Palette.border;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+// Slint has no color picker, so a color is either one of the swatches or typed as hex.
+component ColorRow {
+    in property <string> title;
+    in property <color> value;
+    in-out property <string> hex;
+    callback chosen(string);
+    callback typed(string);
+    callback finished();
+    HorizontalLayout {
+        spacing: 6px;
+        Text {
+            text: root.title;
+            font-size: 13px;
+            color: Palette.foreground;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+
+        for swatch in Appearance.swatches: VerticalLayout {
+            alignment: center;
+            Swatch {
+                swatch: swatch;
+                selected: swatch.value == root.value;
+                clicked => {
+                    root.chosen(swatch.hex);
+                }
+            }
+        }
+        field := LineEdit {
+            width: 96px;
+            text <=> root.hex;
+            accessible-label: root.title;
+            edited(text) => {
+                root.typed(text);
+            }
+            accepted => {
+                root.finished();
+            }
+            changed has-focus => {
+                if !field.has-focus {
+                    root.finished();
+                }
+            }
+        }
+    }
+}
+
+component OpacityRow {
+    in property <string> title;
+    in property <float> minimum: 0;
+    in-out property <float> value;
+    callback moved();
+    callback finished();
+    HorizontalLayout {
+        spacing: 10px;
+        Text {
+            text: root.title;
+            font-size: 13px;
+            color: Palette.foreground;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+
+        Slider {
+            width: 220px;
+            minimum: root.minimum;
+            maximum: 1;
+            step: 0.01;
+            value <=> root.value;
+            accessible-label: root.title;
+            changed => {
+                root.moved();
+            }
+            released => {
+                root.finished();
+            }
+        }
+
+        Note {
+            text: "\{round(root.value * 100)}%";
+            wrap: no-wrap;
+            min-width: 40px;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+        }
+    }
+}
+
 component SettingsPage inherits ScrollView {
     in property <[string]> speed-titles;
     in property <string> speed-detail;
@@ -376,6 +620,11 @@ component SettingsPage inherits ScrollView {
     callback cancel-recording();
     callback clear-shortcut(int);
     callback reset-shortcuts();
+
+    // Half-typed colors shouldn't still be there when coming back to this page.
+    init => {
+        Appearance.fields-reset();
+    }
 
     // Takes the keyboard while a shortcut is being recorded.
     listener := FocusScope {
@@ -439,6 +688,120 @@ component SettingsPage inherits ScrollView {
                 toggled => {
                     root.settings-changed();
                 }
+            }
+        }
+
+        Card {
+            Heading {
+                text: "Appearance";
+            }
+
+            StylePreview { }
+
+            HorizontalLayout {
+                spacing: 8px;
+                for preset[index] in Appearance.presets: StyleTile {
+                    // Starting from nothing shares the width evenly, however long the names are.
+                    preferred-width: 1px;
+                    horizontal-stretch: 1;
+                    preset: preset;
+                    selected: Appearance.preset == index;
+                    clicked => {
+                        Appearance.preset-chosen(index);
+                    }
+                }
+            }
+
+            ColorRow {
+                title: "Text";
+                value: CaptionLook.style.text;
+                hex <=> Appearance.text-hex;
+                chosen(hex) => {
+                    Appearance.color-chosen(0, hex);
+                }
+                typed(hex) => {
+                    Appearance.color-typed(0, hex);
+                }
+                finished => {
+                    Appearance.fields-reset();
+                }
+            }
+
+            ColorRow {
+                title: "Background";
+                value: CaptionLook.style.background;
+                hex <=> Appearance.background-hex;
+                chosen(hex) => {
+                    Appearance.color-chosen(1, hex);
+                }
+                typed(hex) => {
+                    Appearance.color-typed(1, hex);
+                }
+                finished => {
+                    Appearance.fields-reset();
+                }
+            }
+
+            ColorRow {
+                title: "Highlighted words";
+                value: CaptionLook.style.highlight;
+                hex <=> Appearance.highlight-hex;
+                chosen(hex) => {
+                    Appearance.color-chosen(2, hex);
+                }
+                typed(hex) => {
+                    Appearance.color-typed(2, hex);
+                }
+                finished => {
+                    Appearance.fields-reset();
+                }
+            }
+
+            OpacityRow {
+                title: "Background opacity";
+                value <=> Appearance.background-opacity;
+                moved => {
+                    Appearance.opacity-moved();
+                }
+                finished => {
+                    Appearance.opacity-released();
+                }
+            }
+
+            OpacityRow {
+                title: "Text opacity";
+                minimum: Appearance.lowest-text-opacity;
+                value <=> Appearance.text-opacity;
+                moved => {
+                    Appearance.opacity-moved();
+                }
+                finished => {
+                    Appearance.opacity-released();
+                }
+            }
+
+            if Appearance.hard-to-read: HorizontalLayout {
+                spacing: 6px;
+                Path {
+                    width: 14px;
+                    height: 14px;
+                    y: (parent.height - self.height) / 2;
+                    viewbox-width: 14;
+                    viewbox-height: 14;
+                    commands: "M 7 1 L 13.5 12.5 L 0.5 12.5 Z M 7 5 L 7 9 M 7 10.4 L 7 11";
+                    stroke: Theme.accent;
+                    stroke-width: 1.4px;
+                    fill: transparent;
+                }
+
+                Note {
+                    text: "These colors are hard to read against each other.";
+                    color: Theme.accent;
+                    horizontal-stretch: 1;
+                }
+            }
+            if !Appearance.hard-to-read && CaptionLook.style.shadowed: Note {
+                text: "Text gets a soft shadow so it stays readable over the video.";
             }
         }
 
