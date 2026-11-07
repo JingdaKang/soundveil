@@ -18,6 +18,11 @@ cp .build/release/Soundveil "$APP/Contents/MacOS/Soundveil"
 cp Info.plist "$APP/Contents/Info.plist"
 cp ../LICENSE "$APP/Contents/Resources/LICENSE.txt"
 cp vendor/whisper.cpp/LICENSE "$APP/Contents/Resources/whisper-LICENSE.txt"
+# One .lproj folder per translated language. A language appears in the app once it's in the catalog.
+rm -rf "$APP/Contents/Resources/"*.lproj
+for catalog in Resources/*.xcstrings; do
+ xcrun xcstringstool compile "$catalog" --output-directory "$APP/Contents/Resources"
+done
 IDENTITY="${SOUNDVEIL_SIGN_IDENTITY:-Soundveil Local Signing}"
 if security find-certificate -c "$IDENTITY" >/dev/null 2>&1; then
  codesign --force --sign "$IDENTITY" --identifier org.soundveil.mac "$APP"
