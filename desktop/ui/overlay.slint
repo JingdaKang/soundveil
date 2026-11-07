@@ -5,6 +5,7 @@ component ControlButton {
     in property <string> icon;
     in property <string> glyph;
     in property <float> glyph-size: 13;
+    out property <bool> pointed-at: touch.has-hover;
     callback clicked <=> touch.clicked;
     width: 30px;
     height: 26px;
@@ -110,6 +111,8 @@ export component CaptionOverlay inherits Window {
 
     property <length> inset: 6px;
     property <bool> quiet: root.words.length == 0 && root.placeholder == "";
+    // A tooltip may not show on a window without focus, so the buttons name themselves.
+    property <string> hint: smaller.pointed-at ? smaller.label : larger.pointed-at ? larger.label : expand.pointed-at ? expand.label : pass.pointed-at ? pass.label : close.pointed-at ? close.label : "";
     property <int> edges: drag.has-hover ? root.edges-at(drag.mouse-x, drag.mouse-y, root.width, root.height) : 0;
 
     // The rest sits inside this area, because it only counts as hovered while the pointer is on it
@@ -155,7 +158,7 @@ export component CaptionOverlay inherits Window {
             }
         }
 
-        Rectangle {
+        bar := Rectangle {
             x: root.width - self.width - root.inset - 7px;
             y: root.inset + 7px;
             width: buttons.preferred-width + 6px;
@@ -173,7 +176,7 @@ export component CaptionOverlay inherits Window {
                 padding-right: 3px;
                 padding-top: 1px;
                 padding-bottom: 1px;
-                ControlButton {
+                smaller := ControlButton {
                     label: "Smaller text";
                     glyph: "A";
                     glyph-size: 11;
@@ -182,7 +185,7 @@ export component CaptionOverlay inherits Window {
                     }
                 }
 
-                ControlButton {
+                larger := ControlButton {
                     label: "Larger text";
                     glyph: "A";
                     glyph-size: 16;
@@ -191,7 +194,7 @@ export component CaptionOverlay inherits Window {
                     }
                 }
 
-                ControlButton {
+                expand := ControlButton {
                     label: root.expanded ? "Collapse" : "Expand";
                     icon: root.expanded ? "M 1 13 L 5.5 8.5 M 5.5 13 L 5.5 8.5 L 1 8.5 M 13 1 L 8.5 5.5 M 8.5 1 L 8.5 5.5 L 13 5.5" : "M 5.5 8.5 L 1 13 M 1 8.5 L 1 13 L 5.5 13 M 8.5 5.5 L 13 1 M 8.5 1 L 13 1 L 13 5.5";
                     clicked => {
@@ -199,21 +202,36 @@ export component CaptionOverlay inherits Window {
                     }
                 }
 
-                ControlButton {
-                    label: "Click through overlay";
+                pass := ControlButton {
+                    label: "Let clicks pass through";
                     icon: "M 3 2 L 3 11 L 5.6 8.8 L 7.4 12.6 L 9.2 11.8 L 7.4 8.1 L 10.8 8 Z";
                     clicked => {
                         root.click-through();
                     }
                 }
 
-                ControlButton {
-                    label: "Hide captions";
+                close := ControlButton {
+                    label: "Hide overlay";
                     icon: "M 2.5 2.5 L 11.5 11.5 M 11.5 2.5 L 2.5 11.5";
                     clicked => {
                         root.hide-overlay();
                     }
                 }
+            }
+        }
+
+        if root.hint != "": Rectangle {
+            x: root.width - self.width - root.inset - 7px;
+            y: bar.y + bar.height + 4px;
+            width: name.preferred-width + 18px;
+            height: 20px;
+            border-radius: 10px;
+            background: #000000b8;
+            name := Text {
+                text: root.hint;
+                color: white;
+                font-size: 11px;
+                font-weight: 500;
             }
         }
 
