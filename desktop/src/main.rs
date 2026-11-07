@@ -825,32 +825,60 @@ mod snapshot {
     use slint::{Timer, TimerMode};
     use std::time::Duration;
 
-    fn perform(ui: &MainWindow, script: &str) {
+    fn act(window: &slint::Window, words: &[&str]) {
         use slint::LogicalPosition;
         use slint::platform::{Key, PointerEventButton, WindowEvent};
-        let window = ui.window();
-        for step in script.split(';') {
+        let place = |x: &str, y: &str| {
+            LogicalPosition::new(x.parse().unwrap_or(0.0), y.parse().unwrap_or(0.0))
+        };
+        match *words {
+            ["point", x, y] => {
+                let position = place(x, y);
+                window.dispatch_event(WindowEvent::PointerMoved { position });
+            }
+            ["click", x, y] => {
+                let position = place(x, y);
+                let button = PointerEventButton::Left;
+                window.dispatch_event(WindowEvent::PointerMoved { position });
+                window.dispatch_event(WindowEvent::PointerPressed { position, button });
+                window.dispatch_event(WindowEvent::PointerReleased { position, button });
+            }
+            ["key", name] => {
+                let text: slint::SharedString = match name {
+                    "F9" => Key::F9.into(),
+                    "Control" => Key::Control.into(),
+                    "Escape" => Key::Escape.into(),
+                    text => text.into(),
+                };
+                window.dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
+                window.dispatch_event(WindowEvent::KeyReleased { text });
+            }
+            _ => {}
+        }
+    }
+
+    /// A step that starts with `overlay` goes to the overlay rather than the main window, and
+    /// `wait 0.5` holds the steps after it back by that many seconds.
+    fn perform(ui: &MainWindow, script: &str) {
+        let mut steps = script.split(';');
+        while let Some(step) = steps.next() {
             let words: Vec<&str> = step.split_whitespace().collect();
             match words[..] {
-                ["click", x, y] => {
-                    let position =
-                        LogicalPosition::new(x.parse().unwrap_or(0.0), y.parse().unwrap_or(0.0));
-                    let button = PointerEventButton::Left;
-                    window.dispatch_event(WindowEvent::PointerMoved { position });
-                    window.dispatch_event(WindowEvent::PointerPressed { position, button });
-                    window.dispatch_event(WindowEvent::PointerReleased { position, button });
+                ["wait", seconds] => {
+                    let rest = steps.collect::<Vec<_>>().join(";");
+                    let weak = ui.as_weak();
+                    let wait = Duration::from_secs_f64(seconds.parse().unwrap_or(0.5));
+                    Timer::single_shot(wait, move || {
+                        if let Some(ui) = weak.upgrade() {
+                            perform(&ui, &rest);
+                        }
+                    });
+                    return;
                 }
-                ["key", name] => {
-                    let text: slint::SharedString = match name {
-                        "F9" => Key::F9.into(),
-                        "Control" => Key::Control.into(),
-                        "Escape" => Key::Escape.into(),
-                        text => text.into(),
-                    };
-                    window.dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
-                    window.dispatch_event(WindowEvent::KeyReleased { text });
+                ["overlay", ref rest @ ..] => {
+                    with_view(|view| act(view.overlay.window.window(), rest));
                 }
-                _ => {}
+                ref all => act(ui.window(), all),
             }
         }
     }
