@@ -12,8 +12,9 @@ folder with its own toolchain and its own `AGENTS.md`. There is no root-level bu
 
 ## Contracts between parts
 
-- `mac/Sources/CaptionCore`, `ShortcutCore`, and `UpdateCore` are the tuned originals of the
-  logic in `core/`. Until the Mac app moves onto `core/`, a behavior change must land in both.
+- `mac/Sources/CaptionCore`, `ShortcutCore`, `OverlayCore`, and `UpdateCore` are the tuned
+  originals of the logic in `core/`. Until the Mac app moves onto `core/`, a behavior change must
+  land in both.
 - Every part uses whisper.cpp v1.8.7, commit `48f628a84833905ee4a0658ee6d4a5c915ce1997`.
 - A model's raw value names its file on disk and upstream, in every part.
 - Release tags are `vX.Y.Z`. Bump the last number only unless the owner asks otherwise, and

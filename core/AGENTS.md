@@ -7,7 +7,7 @@ for how this fits with the other parts.
 
 - `soundveil-core`: pure logic with no audio, model, or UI dependency, so it builds and tests
   on every platform. Speech gate, rolling transcriber, word styles, token joining, model
-  catalog, shortcuts, and the release check.
+  catalog, shortcuts, caption styles, overlay resize zones, and the release check.
 - `soundveil-whisper`: runs decode jobs on the pinned whisper.cpp through `bridge/`, a narrow
   C API. Run `./scripts/fetch-whisper.sh` once before building it. Metal on macOS; the
   `vulkan` feature adds GPU support on Windows and Linux and needs the Vulkan SDK.
@@ -31,6 +31,10 @@ Do not describe either as verification of live capture, permissions, or an overl
 The settings in `RollingTranscriber` came from measurement. Keep the audio context the same
 for every pass, do not pass a prompt to Whisper, and do not cut audio on its word timestamps.
 Only add a word to the lists in `expressive.rs` if it is rarely ordinary dialogue.
+
+`resize.rs` counts from the top left, where the Mac original counts from the bottom left, and it
+has no `resizedFrame`, because the operating system does that part on Windows and Linux. Saved
+caption styles use the same JSON as the Mac app's.
 
 Text in this crate is shown on every platform, so it must not name one. Key codes and modifier
 bits stay in each operating system's own values; `Keyboard` holds what differs.
