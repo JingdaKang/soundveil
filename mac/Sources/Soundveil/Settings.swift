@@ -125,6 +125,16 @@ struct SettingsView: View {
  }
  var body: some View {
   Form {
+   Section("Language") {
+    Picker("App language", selection: $state.language) {
+     Text("System default").tag(String?.none)
+     ForEach(AppLanguage.available, id: \.self) { Text(verbatim: AppLanguage.name($0)).tag(String?.some($0)) }
+    }
+    Text("Changes the app's text. Captions stay in English.").font(.caption).foregroundStyle(.secondary)
+    if state.language != state.launchLanguage {
+     LabeledContent("Restart Soundveil to apply this.") { Button("Restart Now") { state.restartForLanguage() } }
+    }
+   }
    Section("Captions") {
     Picker("Update speed", selection: $state.updateSpeed) { ForEach(UpdateSpeed.allCases) { Text($0.title).tag($0) } }
     Text(state.updateSpeed.detail).font(.caption).foregroundStyle(.secondary)

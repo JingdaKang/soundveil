@@ -16,6 +16,8 @@ import OverlayCore
  @Published var highlightWords: Bool { didSet { UserDefaults.standard.set(highlightWords, forKey: "highlightWords"); feed.highlight = highlightWords } }
  @Published var updateSpeed: UpdateSpeed { didSet { UserDefaults.standard.set(updateSpeed.rawValue, forKey: "updateSpeed"); inference?.setSpeed(updateSpeed) } }
  @Published var clickThrough: Bool { didSet { UserDefaults.standard.set(clickThrough, forKey: "clickThrough"); watchPointer() } }
+ @Published var language: String? { didSet { AppLanguage.choose(language) } }
+ let launchLanguage: String?
  @Published private(set) var shortcuts: ShortcutMap
  @Published private(set) var refusedShortcuts: [ShortcutAction] = []
  @Published var needsPermission = false
@@ -45,6 +47,7 @@ import OverlayCore
   highlightWords = UserDefaults.standard.object(forKey: "highlightWords") as? Bool ?? true
   updateSpeed = UpdateSpeed(rawValue: UserDefaults.standard.string(forKey: "updateSpeed") ?? "") ?? .auto
   clickThrough = UserDefaults.standard.bool(forKey: "clickThrough")
+  language = AppLanguage.chosen; launchLanguage = AppLanguage.chosen
   shortcuts = UserDefaults.standard.data(forKey: "shortcuts").flatMap { ShortcutMap(data: $0) } ?? .defaults
   feed.fontSize = fontSize; feed.highlight = highlightWords; feed.style = captionStyle
   hotkeys.onAction = { [weak self] in self?.perform($0) }
@@ -70,6 +73,8 @@ import OverlayCore
   case .resetOverlay: showOverlay(); resetOverlay()
   }
  }
+ // Captions stop first, so the recording and the model close cleanly.
+ func restartForLanguage() { Task { await stop(); AppLanguage.restart() } }
  func refresh() {
   installed = model.exists
   if !listening, !busy, !downloading { status = installed ? String(localized: "Ready. Play a video in Chrome, then start captions.") : String(localized: "Download a model to get started.") }
