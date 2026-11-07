@@ -1,5 +1,20 @@
 # Validation — 3 November 2026
 
+## Interface languages — 7 November 2026, not released
+
+The app's text is in English, Simplified and Traditional Chinese, Japanese, Korean, Spanish, French,
+and German. The compiler found 123 strings, all in one catalog. All 93 unit tests pass, including
+checks that every language has every string with the same placeholders.
+
+Checked on this Mac under a test bundle id: the main window in all eight languages, Settings in
+English, German, and French down to the shortcuts, and macOS's own menu items in German. The picker
+listed each language in its own script. Choosing Simplified Chinese with the real pointer offered a
+restart, and the app came back in that language.
+
+Not checked: the translations by a native speaker, the overlay's hover labels and click-through badge
+in any language but English, alerts and error messages in a real failure, and the permission text in
+the macOS prompt.
+
 ## Overlay changes — 7 November 2026, not released
 
 Checked on this Mac in a throwaway build under a test bundle id. All 90 unit tests pass.
