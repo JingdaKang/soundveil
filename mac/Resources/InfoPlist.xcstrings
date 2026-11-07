@@ -1,0 +1,59 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSScreenCaptureUsageDescription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nimmt Chrome- oder Systemaudio lokal auf, um englische Untertitel anzuzeigen. Es wird kein Video gespeichert und kein Mikrofon verwendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture Chrome or system audio locally to display English captions. No video is saved and no microphone is used."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Captura en el Mac el audio de Chrome o del sistema para mostrar subtítulos en inglés. No se guarda vídeo ni se usa el micrófono."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture localement l’audio de Chrome ou du système pour afficher des sous-titres en anglais. Aucune vidéo n’est enregistrée et le micro n’est pas utilisé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chromeまたはシステムのオーディオをこの端末内で取り込み、英語の字幕を表示します。ビデオは保存されず、マイクも使用しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chrome 또는 시스템 오디오를 기기에서 캡처하여 영어 자막을 표시합니다. 비디오는 저장되지 않으며 마이크도 사용하지 않습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在本机捕获 Chrome 或系统音频以显示英语字幕。不会保存视频，也不使用麦克风。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在本機擷取 Chrome 或系統音訊以顯示英文字幕。不會儲存影片，也不使用麥克風。"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
