@@ -12,7 +12,7 @@ Open `dist/Soundveil.app` in Finder. This locally built app is ad-hoc signed, no
 2. Choose a recognition model, then **Download model (free)**. **Large v3 Turbo** is the default and needs 1.6 GB of disk space; [Choosing a model](#choosing-a-model) covers the others. Downloads stream to disk, support cancellation, and install only after completion and a GGML header check. Files are not cryptographically verified by this MVP.
 3. Select **Chrome (all audible tabs)** and **Start captions**.
 4. Accept macOS's native recording-permission prompt. Depending on macOS, the setting is named **Screen Recording** or **Screen & System Audio Recording** under **System Settings → Privacy & Security**. Enable Soundveil and relaunch if requested. The app uses ScreenCaptureKit's native authorization flow; it cannot grant itself access.
-5. Drag the caption panel to your preferred position. Pointing at the panel shows its controls: smaller and larger text, expand, click through, and hide. Resize it from an edge or the corner grip; a larger panel shows more lines. **Expand** grows it upward for reading back, including text that has already faded. Size, position, and text size are remembered, and **Window → Reset Caption Overlay** restores the default. It floats above ordinary windows and requests full-screen/Spaces participation; exclusive full-screen applications may behave differently.
+5. Drag the caption panel to your preferred position. Pointing at the panel shows its controls, and each one names itself when you point at it: smaller and larger text, expand, click through, and hide. Drag any edge or corner to resize it; a larger panel shows more lines. **Expand** grows it upward for reading back, including text that has already faded. Size, position, text size, and caption style are remembered, and **Window → Reset Caption Overlay** restores the default. It floats above ordinary windows and requests full-screen/Spaces participation; exclusive full-screen applications may behave differently.
 6. Stop before changing source, model, or quiet-speech threshold. Stop keeps the words already shown and waits for any current inference call to finish before unloading the model.
 
 Captions roll up from the bottom of the panel. Words appear about a third of a second after they are spoken, dimmed while they may still change, and turn solid once two recognition passes agree. When the speaker pauses, the phrase is finalized and may be corrected slightly. The status line shows how far behind live the captions are.
@@ -44,6 +44,8 @@ Open **Soundveil → Settings** or the gear in the main window. If you close the
 
 **Update speed** sets how often captions refresh, so you can suit your own Mac. A faster rate means less delay and more GPU and battery use. Automatic rests as long as each pass took, which keeps the GPU under about half load on any Mac, and slows down further in Low Power Mode or when the Mac is hot. A fixed choice is always honored. The change applies at once, even while captions are running.
 
+**Appearance** sets how captions look. The preview shows each change, and the overlay follows at once. Start from a style: **Default** (white on a translucent black box), **Text only** (no box, with a soft shadow), **Yellow on black**, **Black on white**, or **Yellow on blue**. Then adjust the text, background, and highlighted word colors, and the background and text opacity. Soundveil warns you when colors are hard to read against each other. Below 60% background opacity, text gets a shadow so it stays readable over the video.
+
 **Keyboard shortcuts** work in every app, including while Chrome is in front, and need no extra permission. Click a shortcut to record a new one, or remove it. A shortcut needs ⌘, ⌃, or ⌥, or a function key, so it can't take over a key you type with. If macOS refuses one, another app is probably using it.
 
 | Action | Default |
@@ -56,7 +58,7 @@ Open **Soundveil → Settings** or the gear in the main window. If you close the
 | Click through overlay | ⌃⌥T |
 | Reset overlay | none |
 
-**Click through** lets clicks pass to whatever is behind the overlay, so it can sit over video controls. The overlay can't be dragged or show its controls until this is off, so turn it off with the shortcut or in Settings.
+**Click through** lets clicks pass to whatever is behind the overlay, so it can sit over video controls. While it's on, the overlay can't be moved or resized. To turn it off, point at the overlay and choose **Turn off click-through**, or use the shortcut or Settings.
 
 ## Choosing a model
 
@@ -193,7 +195,7 @@ Large v3 is the quality-oriented option; Turbo reduces decoding cost. Neither gu
 
 Chrome mode captures the application, **not an individual tab or window's independent audio track**. macOS window selection does not reliably provide per-tab audio isolation. Chrome Beta/Canary bundle identifiers under `com.google.Chrome.*` are included. Protected/DRM content may be silent or unavailable. Chrome helper audio routing, fullscreen placement, sleep/wake, and display changes need interactive verification on your Mac; restart capture after a display/source interruption.
 
-The overlay has a transparent window with a translucent dark caption background, white scalable text, and accessibility labels. The full text remains in history, grouped into sentences. This version has no neural VAD, automatic reconnect, download resume, or background transcript persistence.
+The overlay has a transparent window, a caption background and scalable text in the chosen style, and accessibility labels. The full text remains in history, grouped into sentences. This version has no neural VAD, automatic reconnect, download resume, or background transcript persistence.
 
 ## Optional Core ML encoder
 
@@ -237,9 +239,10 @@ For manual acceptance, test permission denial/retry, Chrome and system capture, 
 - `Sources/CWhisperBridge/include/Bridge.h`, `Sources/CWhisperBridge/Bridge.c`: narrow native inference API.
 - `Sources/WhisperEngine/Recognizer.swift`: decodes a job and rebuilds words from Whisper's tokens.
 - `Sources/Soundveil/App.swift`: SwiftUI controls, session lifecycle, history/export.
-- `Sources/Soundveil/Overlay.swift`: word feed, roll-up captions, hover controls, and resize grip.
+- `Sources/Soundveil/Overlay.swift`: word feed, roll-up captions, hover controls, and resize edges.
 - `Sources/Soundveil/Settings.swift`, `Sources/Soundveil/Hotkeys.swift`: settings window, shortcut recorder, and global shortcuts.
 - `Sources/ShortcutCore/Shortcuts.swift`: shortcut actions, defaults, validation, and storage.
+- `Sources/OverlayCore/CaptionStyle.swift`, `Sources/OverlayCore/Resize.swift`: caption colors, presets, and contrast checks, and overlay resize geometry.
 - `Sources/Soundveil/Capture.swift`: ScreenCaptureKit, PCM extraction, resampling, discontinuity handling, audio level.
 - `Sources/Soundveil/Inference.swift`: model worker and caption delivery.
 - `Sources/Soundveil/Models.swift`: model choices, local storage and download progress/cancellation.
@@ -249,6 +252,7 @@ For manual acceptance, test permission denial/retry, Chrome and system capture, 
 - `Sources/StreamCheck/main.swift`: offline latency and accuracy harness.
 - `Tests/CaptionCoreTests/`: pipeline, rolling transcriber, overlay layout, and expressive word unit tests.
 - `Tests/ShortcutCoreTests/ShortcutTests.swift`: shortcut unit tests.
+- `Tests/OverlayCoreTests/`: caption style and overlay resize unit tests.
 - `Tests/UpdateCoreTests/ReleaseTests.swift`: version and release-response unit tests.
 - `scripts/build.sh`, `scripts/test.sh`: reproducible build/package/sign and test commands.
 - `scripts/setup-signing.sh`: creates the local signing identity.
