@@ -17,5 +17,8 @@ folder with its own toolchain and its own `AGENTS.md`. There is no root-level bu
   land in both.
 - Every part uses whisper.cpp v1.8.7, commit `48f628a84833905ee4a0658ee6d4a5c915ce1997`.
 - A model's raw value names its file on disk and upstream, in every part.
+- The GitHub workflows in `.github/workflows/` are disabled on GitHub, because the owner has no
+  Actions budget. Pushes and tags start nothing. Don't re-enable or dispatch them unasked; run
+  each part's checks locally instead.
 - Release tags are `vX.Y.Z`. Bump the last number only unless the owner asks otherwise, and
   never move to 1.0.0 unasked.
