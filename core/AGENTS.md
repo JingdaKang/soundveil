@@ -15,8 +15,8 @@ for how this fits with the other parts.
 
 ## Validation
 
-`cargo test -p soundveil-core` needs no model and runs in CI on Windows x64 and Arm64, Linux,
-and macOS.
+`cargo test -p soundveil-core` needs no model. It passed in CI on Windows x64 and Arm64, Linux,
+and macOS while the workflows were on; they are now disabled, so run it locally.
 
 The logic was ported from `mac/Sources` and tuned there, so the Swift code is the reference
 until the Mac app moves onto this crate. After changing logic in either language, run:

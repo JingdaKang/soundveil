@@ -102,8 +102,9 @@ To compile for another system from a Mac, add the Rust target and set `SOUNDVEIL
 skips whisper.cpp and the Windows icon. Other C libraries still need a stand-in compiler, because
 `cargo check` links nothing. This proves that the Rust types are right, and nothing else.
 
-CI opens the app on Windows and Linux and keeps pictures of both windows as artifacts, and on Linux
-it runs `--capture-check` against a real audio server. Those are hosted machines with no GPU or
+While the workflows were on, CI opened the app on Windows and Linux and kept pictures of both
+windows as artifacts, and on Linux it ran `--capture-check` against a real audio server. The
+workflows are now disabled on GitHub, so none of that runs on a push. Those are hosted machines with no GPU or
 speakers, so they don't show that the overlay looks right on a real screen or that WASAPI works.
 
 A replay exercises recognition and the interface. Do not describe it as verification of capture,
