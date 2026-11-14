@@ -36,7 +36,7 @@ func describe(_ event: SpeechEvent) -> String {
  }
 }
 func describe(_ job: DecodeJob) -> String {
- "job \(job.samples.count) \(number(job.start)) \(number(job.end)) \(job.audioContext) \(job.maxTokens) \(job.beam) \(job.isFinal) \(checksum(job.samples))"
+ "job \(job.samples.count) \(number(job.start)) \(number(job.end)) \(job.audioContext) \(job.maxTokens) \(job.beam) \(job.isFinal) \(job.timestamps) \(checksum(job.samples))"
 }
 func describe(_ update: CaptionUpdate) -> String {
  "update [\(show(update.committed))] [\(update.tentative.map(show) ?? "nil")] \(update.stable) [\(update.sentences.map { "\($0.text)@\(number($0.start))-\(number($0.end))" }.joined(separator: " | "))]"
@@ -92,7 +92,7 @@ for seed in 0..<seeds {
   if rng.below(8) == 0 {
    let speed = UpdateSpeed.allCases[rng.below(UpdateSpeed.allCases.count)]
    let passTime = rng.unit(), strain = [Strain.none, .warm, .hot][rng.below(3)]
-   transcriber.step = updateInterval(speed, passTime: passTime, strain: strain)
+   transcriber.step = updateInterval(speed, passTime: passTime, strain: strain); transcriber.easeFinals = strain != .none
    print("step \(number(transcriber.step))")
   }
  }

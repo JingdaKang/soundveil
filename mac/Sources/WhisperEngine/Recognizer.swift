@@ -13,7 +13,7 @@ public final class Recognizer: @unchecked Sendable {
  public func decode(_ job: DecodeJob, beam: Int32? = nil) -> [Word]? {
   guard !job.samples.isEmpty else { return [] }
   let code = job.samples.withUnsafeBufferPointer { samples in
-   fc_stream(context, samples.baseAddress, Int32(samples.count), Int32(job.audioContext), beam ?? job.beam, Int32(job.maxTokens), job.isFinal && allowCues ? 1 : 0)
+   fc_stream(context, samples.baseAddress, Int32(samples.count), Int32(job.audioContext), beam ?? job.beam, Int32(job.maxTokens), job.isFinal && allowCues ? 1 : 0, job.timestamps ? 1 : 0)
   }
   guard code == 0 else { return nil }
   return words(in: job)

@@ -47,16 +47,19 @@ int fc_transcribe(FCContext context, const float *s, int n, const char *prompt) 
 // One rolling pass. The encoder dominates the cost and scales with the audio context, so the
 // passes that only refresh the screen use far less than Whisper's default. A bad pass is replaced
 // by the next, so there are no retries: on a final pass they were tried and changed nothing.
+// With timestamps off, Whisper writes text alone. With them on and a small audio context, it can
+// end a phrase early by its own clock and then say the phrase again, so a pass that has both must
+// be one whose text is checked against another pass.
 // There is no prompt: Whisper echoed it into the transcript and invented text. There are no word
 // timestamps either: they were too unreliable here, so the pipeline cuts audio at pauses.
-int fc_stream(FCContext context, const float *s, int n, int audio_ctx, int beam, int max_tokens, int cues) {
+int fc_stream(FCContext context, const float *s, int n, int audio_ctx, int beam, int max_tokens, int cues, int timestamps) {
  struct FC *c = context;
  if(!fc_prepare(c, audio_ctx)) return -1;
  struct whisper_full_params p = whisper_full_default_params(beam > 1 ? WHISPER_SAMPLING_BEAM_SEARCH : WHISPER_SAMPLING_GREEDY);
  p.n_threads = 4; p.language = "en"; p.translate = false;
  p.no_context = true; p.audio_ctx = audio_ctx;
  p.print_realtime = false; p.print_progress = false; p.print_timestamps = false; p.print_special = false;
- p.suppress_blank = true; p.suppress_nst = !cues;
+ p.suppress_blank = true; p.suppress_nst = !cues; p.no_timestamps = !timestamps;
  p.single_segment = true; p.max_tokens = max_tokens; p.temperature_inc = 0.0f;
  p.beam_search.beam_size = beam; p.greedy.best_of = 1;
  return whisper_full_with_state(c->model, c->last, p, s, n);

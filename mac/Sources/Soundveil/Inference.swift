@@ -54,6 +54,7 @@ final class Inference: @unchecked Sendable {
    let update = transcriber.complete(job, words: words ?? [])
    let skipped = transcriber.skipped
    if !job.isFinal { transcriber.step = updateInterval(speed, passTime: took, strain: strain) }
+   transcriber.easeFinals = strain != .none
    let interval = transcriber.step
    lock.unlock()
    guard publish else { continue }

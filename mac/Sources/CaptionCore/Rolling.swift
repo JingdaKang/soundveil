@@ -6,6 +6,7 @@ public struct DecodeJob: Sendable {
  public let maxTokens: Int
  public let beam: Int32
  public let isFinal: Bool
+ public let timestamps: Bool // Whether Whisper keeps its own clock as it decodes. See easeFinals.
  public var end: Double { start + Double(samples.count)/16000 }
 }
 public struct CaptionUpdate: Sendable {
@@ -125,6 +126,11 @@ public struct RollingTranscriber {
  // they made about half the mistakes on speech under music or noise. Each size decodes in a
  // whisper state of its own: mixing sizes in one state corrupted the passes that followed.
  public var finalContext = 1500
+ // Set while the machine is under strain. Final passes then run at the partial context for under
+ // half the cost. They must also drop Whisper's timestamps: with those and a small context, a
+ // final pass could end a phrase early by its own clock and then repeat it. Eased passes match
+ // full ones except on the hardest audio, where they make about half again as many mistakes.
+ public var easeFinals = false
  public var tailWords = 1        // Words shown beyond what two passes agreed on.
  public var minVoiced = 0.25     // Phrases with less speech are not decoded; Whisper invents text from silence.
  public var partialBeam: Int32 = 1
@@ -180,13 +186,13 @@ public struct RollingTranscriber {
   if let phrase = closing.first {
    busy = true
    let seconds = Double(phrase.samples.count)/16000
-   return DecodeJob(samples: phrase.samples, start: phrase.start, audioContext: finalContext, maxTokens: tokenLimit(forSeconds: seconds), beam: finalBeam, isFinal: true)
+   return DecodeJob(samples: phrase.samples, start: phrase.start, audioContext: easeFinals ? audioContext : finalContext, maxTokens: tokenLimit(forSeconds: seconds), beam: finalBeam, isFinal: true, timestamps: !easeFinals)
   }
   // Music or noise passes the gate but gives no words, so each empty pass waits longer.
   let wait = min(max(2, step), step * pow(2, Double(min(emptyPasses, 4))))
   guard length >= firstDecode, audioEnd - decodedEnd >= wait else { return nil }
   busy = true; decodedEnd = audioEnd
-  return DecodeJob(samples: buffer, start: bufferStart, audioContext: length <= shortPhrase ? shortContext : audioContext, maxTokens: tokenLimit(forSeconds: length), beam: partialBeam, isFinal: false)
+  return DecodeJob(samples: buffer, start: bufferStart, audioContext: length <= shortPhrase ? shortContext : audioContext, maxTokens: tokenLimit(forSeconds: length), beam: partialBeam, isFinal: false, timestamps: true)
  }
  public mutating func complete(_ job: DecodeJob, words: [Word]) -> CaptionUpdate {
   busy = false

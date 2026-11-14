@@ -17,11 +17,16 @@ final class RollingTests: XCTestCase {
  func testFinalPassesUseTheFullAudioContext() {
   var t = fast(); t.ingest(audio(3)); let partial = t.nextJob()!
   _ = t.complete(partial, words: []); t.ingest(.pause(at: 2.9, voiced: 2.5)); let final = t.nextJob()!
-  XCTAssertEqual(final.audioContext, 1500)
+  XCTAssertEqual(final.audioContext, 1500); XCTAssertTrue(final.timestamps)
  }
  func testShortPhrasesGetLighterPartialPasses() {
   var t = fast(); t.ingest(audio(3)); let short = t.nextJob()!; XCTAssertEqual(short.audioContext, 320)
   _ = t.complete(short, words: []); t.ingest(audio(2, at: 3)); XCTAssertEqual(t.nextJob()!.audioContext, 640)
+ }
+ func testFinalPassesEaseUnderStrain() {
+  var t = fast(); t.easeFinals = true; t.ingest(audio(3)); let partial = t.nextJob()!; XCTAssertTrue(partial.timestamps)
+  _ = t.complete(partial, words: []); t.ingest(.pause(at: 2.9, voiced: 2.5)); let final = t.nextJob()!
+  XCTAssertEqual(final.audioContext, 640); XCTAssertFalse(final.timestamps); XCTAssertEqual(final.beam, 5)
  }
  func testTokenLimitAllowsFastSpeech() { XCTAssertGreaterThan(tokenLimit(forSeconds: 10), 100) }
  func testWordsPastACutAreFound() {

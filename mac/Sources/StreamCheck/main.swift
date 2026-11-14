@@ -6,7 +6,7 @@ import WhisperEngine
 // Replays a recording through the rolling pipeline on a simulated live clock: audio "arrives"
 // while each pass really runs. Measures caption delay without recording permission. It does
 // not exercise ScreenCaptureKit, the overlay, or real playback.
-let usage = "Usage: StreamCheck model.bin audio.wav [reference.txt] [partial=1] [final=5] [step=0.2] [phrase=2.5] [maxphrase=9] [first=0.8] [ctx=640] [finalctx=1500] [shortctx=320] [short=4.5] [tail=1] [show=1] [pass=0.3]\n"
+let usage = "Usage: StreamCheck model.bin audio.wav [reference.txt] [partial=1] [final=5] [step=0.2] [phrase=2.5] [maxphrase=9] [first=0.8] [ctx=640] [finalctx=1500] [shortctx=320] [short=4.5] [ease=1] [tail=1] [show=1] [pass=0.3]\n"
 var paths: [String] = [], options: [String: Double] = [:]
 for argument in CommandLine.arguments.dropFirst() {
  let parts = argument.split(separator: "=")
@@ -58,6 +58,7 @@ if let v = options["ctx"] { transcriber.audioContext = Int(v); transcriber.final
 if let v = options["finalctx"] { transcriber.finalContext = Int(v) }
 if let v = options["shortctx"] { transcriber.shortContext = Int(v) }
 if let v = options["short"] { transcriber.shortPhrase = v }
+transcriber.easeFinals = options["ease"] == 1 || (options["auto"] ?? 0) >= 2
 let show_ = options["show"] != nil
 var fed = 0, now = 0.0, passes: [Double] = [], lengths: [Double] = []
 var committed = 0, changes = 0, showing: [String] = [], firstSeen: [(key: String, position: Int, time: Double)] = []
