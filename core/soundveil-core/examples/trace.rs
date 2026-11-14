@@ -131,7 +131,7 @@ fn describe_event(event: &SpeechEvent) -> String {
 }
 fn describe_job(job: &DecodeJob) -> String {
     format!(
-        "job {} {:.9} {:.9} {} {} {} {} {}",
+        "job {} {:.9} {:.9} {} {} {} {} {} {}",
         job.samples.len(),
         job.start,
         job.end(),
@@ -139,6 +139,7 @@ fn describe_job(job: &DecodeJob) -> String {
         job.max_tokens,
         job.beam,
         job.is_final,
+        job.timestamps,
         checksum(&job.samples)
     )
 }
@@ -286,6 +287,7 @@ fn main() -> std::io::Result<()> {
                 let pass_time = run.rng.unit();
                 let strain = [Strain::None, Strain::Warm, Strain::Hot][run.rng.below(3)];
                 run.transcriber.step = update_interval(speed, pass_time, strain);
+                run.transcriber.ease_finals = strain != Strain::None;
                 writeln!(out, "step {:.9}", run.transcriber.step)?;
             }
         }

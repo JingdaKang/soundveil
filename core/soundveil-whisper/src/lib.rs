@@ -15,6 +15,7 @@ unsafe extern "C" {
         beam: c_int,
         max_tokens: c_int,
         cues: c_int,
+        timestamps: c_int,
     ) -> c_int;
     fn fc_count(context: *mut c_void) -> c_int;
     fn fc_tokens(context: *mut c_void, segment: c_int) -> c_int;
@@ -56,6 +57,7 @@ impl Recognizer {
                 job.beam,
                 job.max_tokens as c_int,
                 (job.is_final && self.allow_cues) as c_int,
+                job.timestamps as c_int,
             )
         };
         (code == 0).then(|| words_from_tokens(&self.tokens(), job.start, job.end()))

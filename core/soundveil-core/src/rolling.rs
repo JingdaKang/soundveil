@@ -14,6 +14,8 @@ pub struct DecodeJob {
     pub max_tokens: usize,
     pub beam: i32,
     pub is_final: bool,
+    /// Whether Whisper keeps its own clock as it decodes. See `ease_finals`.
+    pub timestamps: bool,
 }
 
 impl DecodeJob {
@@ -227,10 +229,24 @@ pub struct RollingTranscriber {
     pub max_phrase: f64,
     /// Seconds kept. Past this, inference has stalled and audio is dropped.
     pub capacity: f64,
-    /// Encoder frames, at 50 a second. Cost scales with this, so it is far below Whisper's 1500,
-    /// but it must outrun the longest phrase or words are lost. It must also be the same for
-    /// every pass: mixing sizes in one Whisper context corrupted the passes that followed.
+    /// Encoder frames for a partial pass, at 50 a second. Cost scales with this, so it is far
+    /// below Whisper's 1500, but it must outrun the longest phrase or words are lost.
     pub audio_context: usize,
+    /// Encoder frames for a final pass. The transcript comes from these, and at Whisper's full
+    /// 1500 they made about half the mistakes on speech under music or noise. Each size decodes
+    /// in a Whisper state of its own: mixing sizes in one state corrupted the passes that
+    /// followed.
+    pub final_context: usize,
+    /// Set while the machine is under strain. Final passes then run at the partial context for
+    /// under half the cost. They must also drop Whisper's timestamps: with those and a small
+    /// context, a final pass could end a phrase early by its own clock and then repeat it. Eased
+    /// passes match full ones except on the hardest audio, where they make about half again as
+    /// many mistakes.
+    pub ease_finals: bool,
+    /// Most phrases end within a few seconds, and a partial pass over a short one gets by on
+    /// half the encoder work. Past `short_phrase` seconds a phrase moves up to `audio_context`.
+    pub short_context: usize,
+    pub short_phrase: f64,
     /// Words shown beyond what two passes agreed on.
     pub tail_words: usize,
     /// Phrases with less speech are not decoded; Whisper invents text from silence.
@@ -259,6 +275,10 @@ impl Default for RollingTranscriber {
             max_phrase: 9.0,
             capacity: 24.0,
             audio_context: 640,
+            final_context: 1500,
+            ease_finals: false,
+            short_context: 320,
+            short_phrase: 4.5,
             tail_words: 1,
             min_voiced: 0.25,
             partial_beam: 1,
@@ -370,10 +390,15 @@ impl RollingTranscriber {
             let job = DecodeJob {
                 samples: phrase.samples.clone(),
                 start: phrase.start,
-                audio_context: self.audio_context,
+                audio_context: if self.ease_finals {
+                    self.audio_context
+                } else {
+                    self.final_context
+                },
                 max_tokens: token_limit(seconds),
                 beam: self.final_beam,
                 is_final: true,
+                timestamps: !self.ease_finals,
             };
             self.busy = true;
             return Some(job);
@@ -389,10 +414,15 @@ impl RollingTranscriber {
         Some(DecodeJob {
             samples: self.buffer.clone(),
             start: self.buffer_start,
-            audio_context: self.audio_context,
+            audio_context: if self.length() <= self.short_phrase {
+                self.short_context
+            } else {
+                self.audio_context
+            },
             max_tokens: token_limit(self.length()),
             beam: self.partial_beam,
             is_final: false,
+            timestamps: true,
         })
     }
 
@@ -572,18 +602,46 @@ mod tests {
     }
 
     #[test]
-    fn every_pass_uses_the_same_audio_context() {
+    fn final_passes_use_the_full_audio_context() {
         let mut t = fast();
         t.ingest(audio(3.0, 0.0));
         let partial = t.next_job().unwrap();
         t.complete(&partial, vec![]);
         t.ingest(pause(2.9, 2.5));
-        assert_eq!(t.next_job().unwrap().audio_context, partial.audio_context);
+        let last = t.next_job().unwrap();
+        assert_eq!(last.audio_context, 1500);
+        assert!(last.timestamps);
+    }
+
+    #[test]
+    fn short_phrases_get_lighter_partial_passes() {
+        let mut t = fast();
+        t.ingest(audio(3.0, 0.0));
+        let short = t.next_job().unwrap();
+        assert_eq!(short.audio_context, 320);
+        t.complete(&short, vec![]);
+        t.ingest(audio(2.0, 3.0));
+        assert_eq!(t.next_job().unwrap().audio_context, 640);
+    }
+
+    #[test]
+    fn final_passes_ease_under_strain() {
+        let mut t = fast();
+        t.ease_finals = true;
+        t.ingest(audio(3.0, 0.0));
+        let partial = t.next_job().unwrap();
+        assert!(partial.timestamps);
+        t.complete(&partial, vec![]);
+        t.ingest(pause(2.9, 2.5));
+        let last = t.next_job().unwrap();
+        assert_eq!(last.audio_context, 640);
+        assert!(!last.timestamps);
+        assert_eq!(last.beam, 5);
     }
 
     #[test]
     fn token_limit_allows_fast_speech() {
-        assert!(token_limit(10.0) > 60);
+        assert!(token_limit(10.0) > 100);
     }
 
     #[test]

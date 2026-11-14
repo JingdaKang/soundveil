@@ -14,7 +14,7 @@ use std::path::Path;
 use std::process::exit;
 use std::time::Instant;
 
-const USAGE: &str = "Usage: stream-check model.bin audio.wav [reference.txt] [partial=1] [final=5] [step=0.2] [phrase=2.5] [maxphrase=9] [first=0.8] [ctx=640] [tail=1] [show=1] [pass=0.3]";
+const USAGE: &str = "Usage: stream-check model.bin audio.wav [reference.txt] [partial=1] [final=5] [step=0.2] [phrase=2.5] [maxphrase=9] [first=0.8] [ctx=640] [finalctx=1500] [shortctx=320] [short=4.5] [ease=1] [tail=1] [show=1] [pass=0.3]";
 
 fn load(path: &str) -> Result<Vec<f32>, String> {
     let mut reader = hound::WavReader::open(path).map_err(|e| e.to_string())?;
@@ -197,7 +197,19 @@ fn main() {
     }
     if let Some(v) = option("ctx") {
         transcriber.audio_context = v as usize;
+        transcriber.final_context = v as usize;
+        transcriber.short_phrase = 0.0;
     }
+    if let Some(v) = option("finalctx") {
+        transcriber.final_context = v as usize;
+    }
+    if let Some(v) = option("shortctx") {
+        transcriber.short_context = v as usize;
+    }
+    if let Some(v) = option("short") {
+        transcriber.short_phrase = v;
+    }
+    transcriber.ease_finals = option("ease") == Some(1.0) || option("auto").unwrap_or(0.0) >= 2.0;
     let mut screen = Screen {
         print: option("show").is_some(),
         ..Screen::default()
