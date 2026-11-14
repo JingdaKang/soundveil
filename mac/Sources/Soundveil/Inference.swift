@@ -26,7 +26,7 @@ final class Inference: @unchecked Sendable {
   }
  }
  func setSpeed(_ speed: UpdateSpeed) {
-  lock.withLock { self.speed = speed; transcriber.step = updateInterval(speed, passTime: 0, constrained: false) }
+  lock.withLock { self.speed = speed; transcriber.step = updateInterval(speed, passTime: 0, strain: .none) }
  }
  func submit(_ events: [SpeechEvent]) {
   lock.lock()
@@ -48,12 +48,12 @@ final class Inference: @unchecked Sendable {
    let words = recognizer.decode(job)
    let took = Date().timeIntervalSince(began)
    let info = ProcessInfo.processInfo
-   let constrained = info.isLowPowerModeEnabled || info.thermalState == .serious || info.thermalState == .critical
+   let strain: Strain = info.isLowPowerModeEnabled || info.thermalState == .serious || info.thermalState == .critical ? .hot : info.thermalState == .fair ? .warm : .none
    lock.lock()
    let publish = enabled
    let update = transcriber.complete(job, words: words ?? [])
    let skipped = transcriber.skipped
-   if !job.isFinal { transcriber.step = updateInterval(speed, passTime: took, constrained: constrained) }
+   if !job.isFinal { transcriber.step = updateInterval(speed, passTime: took, strain: strain) }
    let interval = transcriber.step
    lock.unlock()
    guard publish else { continue }

@@ -149,18 +149,19 @@ final class RollingTests: XCTestCase {
   _ = t.complete(job, words: words("Noise")); let clear = t.nextJob()!; XCTAssertTrue(clear.samples.isEmpty)
   XCTAssertEqual(t.complete(clear, words: []).tentative?.count, 0)
  }
- func testAutomaticKeepsTheGPUUnderHalfLoad() {
-  XCTAssertEqual(updateInterval(.auto, passTime: 0.1, constrained: false), 0.4)
-  XCTAssertEqual(updateInterval(.auto, passTime: 0.6, constrained: false), 1.2)
-  XCTAssertEqual(updateInterval(.auto, passTime: 9, constrained: false), 3)
+ func testAutomaticKeepsTheGPUUnderAThirdOfItsLoad() {
+  XCTAssertEqual(updateInterval(.auto, passTime: 0.1, strain: .none), 0.5)
+  XCTAssertEqual(updateInterval(.auto, passTime: 0.25, strain: .none), 0.75)
+  XCTAssertEqual(updateInterval(.auto, passTime: 9, strain: .none), 3)
  }
- func testAutomaticSlowsDownUnderPressure() {
-  XCTAssertEqual(updateInterval(.auto, passTime: 0.1, constrained: true), 0.8)
-  XCTAssertEqual(updateInterval(.auto, passTime: 2, constrained: true), 3)
+ func testAutomaticEasesOffAsTheMachineWarms() {
+  XCTAssertEqual(updateInterval(.auto, passTime: 0.25, strain: .warm), 1.125)
+  XCTAssertEqual(updateInterval(.auto, passTime: 0.25, strain: .hot), 1.875)
+  XCTAssertEqual(updateInterval(.auto, passTime: 2, strain: .hot), 3)
  }
  func testFixedSpeedsAreAlwaysHonored() {
-  XCTAssertEqual(updateInterval(.fastest, passTime: 2, constrained: true), 0.2)
-  XCTAssertEqual(updateInterval(.saver, passTime: 0, constrained: false), 1.5)
+  XCTAssertEqual(updateInterval(.fastest, passTime: 2, strain: .hot), 0.2)
+  XCTAssertEqual(updateInterval(.saver, passTime: 0, strain: .none), 1.5)
  }
  func testEmptyPassesBackOff() {
   var t = fast(); t.ingest(audio(2))

@@ -70,7 +70,7 @@ public enum UpdateSpeed: String, CaseIterable, Identifiable, Sendable {
  }
  public var detail: String {
   switch self {
-  case .auto: return String(localized: "Keeps the GPU under about half load on this Mac, and slows down in Low Power Mode or when it's hot.")
+  case .auto: return String(localized: "Keeps the GPU under about a third of its load on this Mac, and eases off as it warms up or in Low Power Mode.")
   case .fastest: return String(localized: "Lowest delay. Uses the most GPU and battery, and text changes more as it settles.")
   case .balanced: return String(localized: "A good default on most Macs.")
   case .efficient: return String(localized: "Much less GPU use, with words arriving a little later.")
@@ -87,12 +87,21 @@ public enum UpdateSpeed: String, CaseIterable, Identifiable, Sendable {
   }
  }
 }
-// A fixed choice is always honored. Automatic rests as long as each pass took, so the GPU is
-// busy about half the time at most, and doubles that under Low Power Mode or thermal pressure.
-public func updateInterval(_ speed: UpdateSpeed, passTime: Double, constrained: Bool) -> Double {
+// How hard the machine is being pushed, from the system's own signals. Warm is the first sign of
+// heat, well before the system slows anything down. Hot is serious heat or a power-saving mode.
+public enum Strain: Sendable { case none, warm, hot }
+// A fixed choice is always honored. Automatic rests twice as long as each pass took, so the GPU
+// is busy about a third of the time at most. Resting only as long as a pass took kept it half
+// busy, which ran a laptop hot and its fans loud through a film. It rests longer still as the
+// machine warms, so heat is answered before the fans have to.
+public func updateInterval(_ speed: UpdateSpeed, passTime: Double, strain: Strain) -> Double {
  if let seconds = speed.seconds { return seconds }
- let paced = max(0.4, passTime * 2)
- return min(3, constrained ? paced * 2 : paced)
+ let paced = max(0.5, passTime * 3)
+ switch strain {
+ case .none: return min(3, paced)
+ case .warm: return min(3, paced * 1.5)
+ case .hot: return min(3, paced * 2.5)
+ }
 }
 // Whisper has no native streaming, and its word timestamps are too unreliable to cut audio
 // on. So partial passes over the current phrase are for display only, and the transcript comes

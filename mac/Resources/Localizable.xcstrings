@@ -2163,48 +2163,48 @@
         }
       }
     },
-    "Keeps the GPU under about half load on this Mac, and slows down in Low Power Mode or when it's hot." : {
+    "Keeps the GPU under about a third of its load on this Mac, and eases off as it warms up or in Low Power Mode." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hält die GPU auf diesem Mac unter etwa halber Last und wird im Stromsparmodus oder bei Hitze langsamer."
+            "value" : "Hält die GPU auf diesem Mac unter etwa einem Drittel Last und nimmt sich weiter zurück, wenn er warm wird oder im Stromsparmodus ist."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mantiene la GPU por debajo de la mitad de su carga en este Mac y va más despacio en Modo de bajo consumo o cuando se calienta."
+            "value" : "Mantiene la GPU por debajo de un tercio de su carga en este Mac y baja el ritmo cuando se calienta o en Modo de bajo consumo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maintient la charge du GPU sous la moitié environ sur ce Mac et ralentit en mode économie d’énergie ou quand il chauffe."
+            "value" : "Maintient la charge du GPU sous un tiers environ sur ce Mac et lève le pied quand il chauffe ou en mode économie d’énergie."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このMacのGPU負荷を約半分以下に保ち、低電力モードのときや本体が熱いときは更新を遅くします。"
+            "value" : "このMacのGPU負荷を約3分の1以下に保ち、本体が温まってきたときや低電力モードのときは更新をさらに控えます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 Mac의 GPU 부하를 절반 정도 아래로 유지하고, 저전력 모드이거나 기기가 뜨거우면 속도를 늦춥니다."
+            "value" : "이 Mac의 GPU 부하를 3분의 1 정도 아래로 유지하고, 기기가 따뜻해지거나 저전력 모드이면 속도를 더 늦춥니다."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "让这台 Mac 的 GPU 负载保持在约一半以下，并在低电量模式下或机器发热时放慢。"
+            "value" : "让这台 Mac 的 GPU 负载保持在约三分之一以下，并在机器变热或处于低电量模式时进一步放慢。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "讓這台 Mac 的 GPU 負載維持在約一半以下，並在低耗電模式下或機器過熱時放慢。"
+            "value" : "讓這台 Mac 的 GPU 負載維持在約三分之一以下，並在機器變熱或處於低耗電模式時進一步放慢。"
           }
         }
       }

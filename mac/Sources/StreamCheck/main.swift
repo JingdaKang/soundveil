@@ -100,7 +100,7 @@ while true {
  let words = recognizer.decode(job) ?? []
  // slow=3 simulates a Mac three times slower. pass= fixes the time of every pass, so runs repeat exactly.
  let took = options["pass"] ?? Date().timeIntervalSince(began) * (options["slow"] ?? 1)
- if options["auto"] != nil, !job.isFinal { transcriber.step = updateInterval(.auto, passTime: took, constrained: options["auto"] == 2) }
+ if options["auto"] != nil, !job.isFinal { transcriber.step = updateInterval(.auto, passTime: took, strain: options["auto"] == 2 ? .hot : options["auto"] == 3 ? .warm : .none) }
  passes.append(took); lengths.append(Double(job.samples.count)/16000); if job.isFinal { finals.append(took) }
  now += took; feed(until: now)
  record(transcriber.complete(job, words: words))

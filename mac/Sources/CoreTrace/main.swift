@@ -91,7 +91,8 @@ for seed in 0..<seeds {
   if rng.below(20) == 0 { print(describe(SpeechEvent.gap)); transcriber.ingest(.gap); pump() }
   if rng.below(8) == 0 {
    let speed = UpdateSpeed.allCases[rng.below(UpdateSpeed.allCases.count)]
-   transcriber.step = updateInterval(speed, passTime: rng.unit(), constrained: rng.below(2) == 0)
+   let passTime = rng.unit(), strain = [Strain.none, .warm, .hot][rng.below(3)]
+   transcriber.step = updateInterval(speed, passTime: passTime, strain: strain)
    print("step \(number(transcriber.step))")
   }
  }
