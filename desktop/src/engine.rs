@@ -5,7 +5,8 @@
 //! transcriber's bounded buffer drops the oldest audio and that coverage is lost.
 
 use soundveil_core::{
-    CaptionUpdate, RollingTranscriber, SpeechEvent, Strain, UpdateSpeed, update_interval,
+    CaptionUpdate, RollingTranscriber, SpeechEvent, Strain, UpdateSpeed, eases_finals,
+    full_final_time, update_interval,
 };
 use soundveil_whisper::Recognizer;
 use std::path::PathBuf;
@@ -110,6 +111,7 @@ impl Engine {
 
 fn run(shared: &Shared, mut recognizer: Recognizer, reports: &Reports) {
     let mut last_status = Instant::now() - Duration::from_secs(1);
+    let mut final_time = 0.0;
     loop {
         let job = {
             let mut state = shared.lock();
@@ -138,7 +140,11 @@ fn run(shared: &Shared, mut recognizer: Recognizer, reports: &Reports) {
             let update = state.transcriber.complete(&job, words.unwrap_or_default());
             if !job.is_final {
                 state.transcriber.step = update_interval(state.speed, took, Strain::None);
+            } else if !failed {
+                final_time = full_final_time(final_time, took, !job.timestamps);
             }
+            // No system here reports heat or power saving yet, so only a slow machine eases.
+            state.transcriber.ease_finals = eases_finals(Strain::None, final_time);
             (update, state.transcriber.skipped(), state.transcriber.step)
         };
         if failed {

@@ -206,6 +206,26 @@ pub fn update_interval(speed: UpdateSpeed, pass_time: f64, strain: Strain) -> f6
     eased.min(3.0)
 }
 
+/// What a full final pass takes on this machine, learned from the final passes that have run.
+/// An eased one costs under half as much (241 ms against 509 ms on an M4 Pro), so it counts at
+/// what a full one would have taken. Halfway to each new figure, so one slow pass doesn't decide
+/// it.
+pub fn full_final_time(known: f64, took: f64, eased: bool) -> f64 {
+    let full = if eased { took * 2.1 } else { took };
+    if known == 0.0 {
+        full
+    } else {
+        (known + full) / 2.0
+    }
+}
+
+/// Full final passes are for machines with room for them. They ease under strain, and where one
+/// takes this long: a phrase ends every few seconds, so slower than this and final passes alone
+/// would keep the GPU busy a third of the time.
+pub fn eases_finals(strain: Strain, final_time: f64) -> bool {
+    strain != Strain::None || final_time > 0.9
+}
+
 #[derive(Clone, Debug)]
 struct Phrase {
     samples: Vec<f32>,
@@ -237,8 +257,8 @@ pub struct RollingTranscriber {
     /// in a Whisper state of its own: mixing sizes in one state corrupted the passes that
     /// followed.
     pub final_context: usize,
-    /// Set while the machine is under strain. Final passes then run at the partial context for
-    /// under half the cost. They must also drop Whisper's timestamps: with those and a small
+    /// Set while the machine is under strain or too slow for full final passes: see
+    /// [`eases_finals`]. Final passes then run at the partial context for under half the cost. They must also drop Whisper's timestamps: with those and a small
     /// context, a final pass could end a phrase early by its own clock and then repeat it. Eased
     /// passes match full ones except on the hardest audio, where they make about half again as
     /// many mistakes.
@@ -948,6 +968,28 @@ mod tests {
         );
         assert_eq!(update_interval(UpdateSpeed::Auto, 0.25, Strain::Hot), 1.875);
         assert_eq!(update_interval(UpdateSpeed::Auto, 2.0, Strain::Hot), 3.0);
+    }
+
+    #[test]
+    fn final_passes_ease_under_strain_or_where_they_are_slow() {
+        assert!(!eases_finals(Strain::None, 0.0));
+        assert!(!eases_finals(Strain::None, 0.5));
+        assert!(eases_finals(Strain::None, 1.5));
+        assert!(eases_finals(Strain::Warm, 0.5));
+        assert!(eases_finals(Strain::Hot, 0.0));
+    }
+
+    #[test]
+    fn an_eased_final_pass_counts_at_what_a_full_one_would_take() {
+        assert_eq!(full_final_time(0.0, 0.5, false), 0.5);
+        assert!(near(full_final_time(0.0, 0.5, true), 1.05, 0.001));
+        assert_eq!(full_final_time(1.5, 0.5, false), 1.0);
+        // A slow machine stays eased: its eased passes still show that full ones would be slow.
+        let mut known = 1.5;
+        for _ in 0..5 {
+            known = full_final_time(known, 0.72, true);
+        }
+        assert!(eases_finals(Strain::None, known));
     }
 
     #[test]

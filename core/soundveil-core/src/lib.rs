@@ -22,7 +22,7 @@ pub use release::{Release, Version};
 pub use resize::{ResizeEdges, ResizeZones};
 pub use rolling::{
     CaptionUpdate, DecodeJob, PlacedWord, RollingTranscriber, Strain, UpdateSpeed, WordPlacer,
-    reveal_interval, update_interval,
+    eases_finals, full_final_time, reveal_interval, update_interval,
 };
 pub use shortcuts::{Held, Keyboard, Shortcut, ShortcutAction, ShortcutMap};
 pub use tokens::words_from_tokens;

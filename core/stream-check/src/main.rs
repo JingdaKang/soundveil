@@ -6,7 +6,8 @@
 //! depends on machine speed, so the two print identical output for identical behavior.
 
 use soundveil_core::{
-    CaptionUpdate, RollingTranscriber, SpeechGate, Strain, UpdateSpeed, Word, update_interval,
+    CaptionUpdate, RollingTranscriber, SpeechGate, Strain, UpdateSpeed, Word, eases_finals,
+    full_final_time, update_interval,
 };
 use soundveil_whisper::Recognizer;
 use std::collections::HashMap;
@@ -214,7 +215,7 @@ fn main() {
         print: option("show").is_some(),
         ..Screen::default()
     };
-    let (mut fed, mut now) = (0_usize, 0.0_f64);
+    let (mut fed, mut now, mut final_time) = (0_usize, 0.0_f64, 0.0_f64);
     let (mut passes, mut lengths, mut finals) = (Vec::new(), Vec::new(), Vec::new());
     let feed = |until: f64, fed: &mut usize, gate: &mut SpeechGate, t: &mut RollingTranscriber| {
         let target = samples.len().min((until * 16_000.0) as usize);
@@ -240,9 +241,7 @@ fn main() {
         // slow=3 simulates a machine three times slower. pass= fixes the time of every pass.
         let took = option("pass")
             .unwrap_or_else(|| began.elapsed().as_secs_f64() * option("slow").unwrap_or(1.0));
-        if let Some(auto) = option("auto")
-            && !job.is_final
-        {
+        if let Some(auto) = option("auto") {
             let strain = if auto == 2.0 {
                 Strain::Hot
             } else if auto == 3.0 {
@@ -250,7 +249,13 @@ fn main() {
             } else {
                 Strain::None
             };
-            transcriber.step = update_interval(UpdateSpeed::Auto, took, strain);
+            if job.is_final {
+                final_time = full_final_time(final_time, took, !job.timestamps);
+            } else {
+                transcriber.step = update_interval(UpdateSpeed::Auto, took, strain);
+            }
+            transcriber.ease_finals =
+                option("ease") == Some(1.0) || eases_finals(strain, final_time);
         }
         passes.push(took);
         lengths.push(job.samples.len() as f64 / 16_000.0);
