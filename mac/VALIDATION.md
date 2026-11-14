@@ -1,5 +1,79 @@
 # Validation — 3 November 2026
 
+## Accuracy, power, and caption type — 14 November 2026, not released
+
+The owner reported low accuracy on films and fast or indistinct speech, a Mac running hot and loud,
+and stiff type with a mediocre yellow highlight.
+
+### Accuracy
+
+Measured with `StreamCheck` at `pass=0.3` on an M4 Pro with Large v3 Turbo. The clips are a
+218-word film-style dialogue spoken by macOS voices, 62 s at a brisk pace and 30 s at a very fast
+one. Score clips mix in synthetic music with percussive hits, 5 dB or 0 dB below the speech. Muffled
+clips are low-passed near 1.6 kHz with echoes. Offline is one ordinary Whisper pass over the whole
+clip, the most this model can do. Word error:
+
+| Clip | Before | Now | Now, eased | Offline |
+|---|---|---|---|---|
+| Brisk dialogue | 8.7% | 3.2% | 3.2% | 2.3% |
+| Very fast | 21.6% | 1.4% | 1.4% | 1.4% |
+| Under a score, 5 dB | 7.8% | 3.7% | 3.2% | 1.4% |
+| Under a score, 0 dB | 12.8% | 5.0% | 8.3% | 3.2% |
+| Muffled | 21.1% | 17.0% | 18.3% | 13.3% |
+| Very fast under a score | 31.7% | 2.8% | 3.2% | 3.2% |
+| Very fast and muffled | 60.6% | 38.1% | 48.2% | 29.4% |
+
+What was wrong, each found by comparing against the offline pass:
+
+- The token cap of 6 a second cut the ends off fast phrases, and those words never came back.
+- Final passes at an audio context of 640 could repeat a whole sentence. With a small context
+  Whisper's timestamps run short, so it ends the phrase early by its own clock and says it again.
+  A context of 1500 stops it, and so does turning timestamps off. Retrying on Whisper's own checks
+  changed nothing, and neither did a context of 800.
+- The Mac app heard only the left channel. `AVAudioConverter` drops the right one going from stereo
+  to mono: a tone on the right alone came out silent. Channels are now averaged first. This is not
+  in the table, because the clips are mono.
+- A run with no pause is cut at its quietest point, and the words shown for the audio after the
+  cut were cleared, then came back with the next pass. They now stay.
+
+The Rust core has the same changes. Both state machines gave identical output on 347,249 seeded
+trace lines, and `StreamCheck` matched `stream-check` on real and fast speech, full and eased.
+
+### Power
+
+GPU busy is the time spent in passes over the clip's length, with Automatic, on the M4 Pro:
+
+| | Brisk dialogue | Under a score |
+|---|---|---|
+| Before | 48% | 62% |
+| Now | 36% | 39% |
+| Now, warming up | 22% | 26% |
+| Now, Low Power Mode or hot | 17% | 18% |
+
+Automatic now rests twice as long as each pass took, partial passes over phrases up to 4.5 s use
+an audio context of 320, and final passes ease when the Mac reports it is warming up. Words first
+appear about 0.8 s after they are spoken on the dialogue clip, against 0.7 s before. Scaling each
+pass to simulate slower Macs gave 43% at 2×, 51% at 3×, and 63% at 5×, with final passes eased.
+Peak memory was 2.2 GB, up from about 1.9 GB, for the three whisper states.
+
+### Caption type
+
+Rounded is the new default typeface, with Classic, Serif, and Typewriter in Settings. The default
+text is a soft white, highlighted words are filled top to bottom and glow a little on a dark
+surround, and lines already read dim. Seen in the Settings preview of a test build, and the overlay
+view was drawn to images in every typeface and three styles. All 103 unit tests pass.
+
+### Not checked
+
+- Real film audio. Every clip is synthetic speech, which is clearer than an actor, so these
+  figures show what the fixes do, not what a film will score.
+- Live capture with any of this: the channel averaging, the new settings on real playback, and
+  whether the Mac in fact runs cooler. Fan noise and temperature were not measured.
+- How often macOS reports that it is warming up, which decides when easing starts.
+- The slower-Mac rows on a real slower Mac, and any model but Large v3 Turbo.
+- The new typeface strings by a native speaker, and the overlay in a new typeface on screen with
+  live captions.
+
 ## Interface languages — 7 November 2026, not released
 
 The app's text is in English, Simplified and Traditional Chinese, Japanese, Korean, Spanish, French,
