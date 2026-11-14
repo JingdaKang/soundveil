@@ -7,6 +7,7 @@ use std::path::Path;
 unsafe extern "C" {
     fn fc_create_device(path: *const c_char, use_gpu: c_int) -> *mut c_void;
     fn fc_destroy(context: *mut c_void);
+    fn fc_prepare(context: *mut c_void, audio_ctx: c_int) -> c_int;
     fn fc_stream(
         context: *mut c_void,
         samples: *const c_float,
@@ -41,6 +42,14 @@ impl Recognizer {
             context,
             allow_cues: true,
         })
+    }
+
+    /// Sets up the working memory for each audio context size ahead of the first pass that needs
+    /// it. Returns false if one could not be made.
+    pub fn prepare(&mut self, contexts: &[usize]) -> bool {
+        contexts
+            .iter()
+            .all(|&size| unsafe { fc_prepare(self.context, size as c_int) } != 0)
     }
 
     /// Returns `None` if Whisper failed. An empty job needs no pass and gives no words.

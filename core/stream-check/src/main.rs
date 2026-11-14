@@ -211,6 +211,11 @@ fn main() {
         transcriber.short_phrase = v;
     }
     transcriber.ease_finals = option("ease") == Some(1.0) || option("auto").unwrap_or(0.0) >= 2.0;
+    recognizer.prepare(&[
+        transcriber.short_context,
+        transcriber.audio_context,
+        transcriber.final_context,
+    ]);
     let mut screen = Screen {
         print: option("show").is_some(),
         ..Screen::default()

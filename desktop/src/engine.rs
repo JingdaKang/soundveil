@@ -48,6 +48,11 @@ impl Engine {
     pub fn start(model: PathBuf, speed: UpdateSpeed, reports: Reports) -> Result<Self, String> {
         let mut transcriber = RollingTranscriber::default();
         transcriber.step = update_interval(speed, 0.0, Strain::None);
+        let sizes = [
+            transcriber.short_context,
+            transcriber.audio_context,
+            transcriber.final_context,
+        ];
         let shared = Arc::new(Shared {
             state: Mutex::new(State {
                 transcriber,
@@ -59,7 +64,11 @@ impl Engine {
         let (loaded, result) = mpsc::channel();
         let worker = {
             let shared = shared.clone();
-            thread::spawn(move || match Recognizer::new(&model, true) {
+            // Each size's working memory is set up here, so the first passes aren't slowed by it.
+            let ready = move || {
+                Recognizer::new(&model, true).and_then(|mut r| r.prepare(&sizes).then_some(r))
+            };
+            thread::spawn(move || match ready() {
                 Some(recognizer) => {
                     let _ = loaded.send(Ok(()));
                     run(&shared, recognizer, &reports);
