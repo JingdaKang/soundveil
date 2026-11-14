@@ -3,8 +3,9 @@
 //! implementations agree. `core/scripts/compare-with-swift.sh` runs both.
 
 use soundveil_core::{
-    Caption, CaptionUpdate, DecodeJob, RollingTranscriber, SpeechEvent, SpeechGate, UpdateSpeed,
-    Word, WordPlacer, WordStyle, cue_label, reveal_interval, update_interval, word_styles,
+    Caption, CaptionUpdate, DecodeJob, RollingTranscriber, SpeechEvent, SpeechGate, Strain,
+    UpdateSpeed, Word, WordPlacer, WordStyle, cue_label, reveal_interval, update_interval,
+    word_styles,
 };
 use std::io::{BufWriter, Write};
 
@@ -283,8 +284,8 @@ fn main() -> std::io::Result<()> {
             if run.rng.below(8) == 0 {
                 let speed = UpdateSpeed::ALL[run.rng.below(UpdateSpeed::ALL.len())];
                 let pass_time = run.rng.unit();
-                let constrained = run.rng.below(2) == 0;
-                run.transcriber.step = update_interval(speed, pass_time, constrained);
+                let strain = [Strain::None, Strain::Warm, Strain::Hot][run.rng.below(3)];
+                run.transcriber.step = update_interval(speed, pass_time, strain);
                 writeln!(out, "step {:.9}", run.transcriber.step)?;
             }
         }

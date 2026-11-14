@@ -21,7 +21,7 @@ pub use pipeline::{Caption, SpeechEvent, SpeechGate, Word};
 pub use release::{Release, Version};
 pub use resize::{ResizeEdges, ResizeZones};
 pub use rolling::{
-    CaptionUpdate, DecodeJob, PlacedWord, RollingTranscriber, UpdateSpeed, WordPlacer,
+    CaptionUpdate, DecodeJob, PlacedWord, RollingTranscriber, Strain, UpdateSpeed, WordPlacer,
     reveal_interval, update_interval,
 };
 pub use shortcuts::{Held, Keyboard, Shortcut, ShortcutAction, ShortcutMap};

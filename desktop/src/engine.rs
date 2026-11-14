@@ -5,7 +5,7 @@
 //! transcriber's bounded buffer drops the oldest audio and that coverage is lost.
 
 use soundveil_core::{
-    CaptionUpdate, RollingTranscriber, SpeechEvent, UpdateSpeed, update_interval,
+    CaptionUpdate, RollingTranscriber, SpeechEvent, Strain, UpdateSpeed, update_interval,
 };
 use soundveil_whisper::Recognizer;
 use std::path::PathBuf;
@@ -46,7 +46,7 @@ impl Engine {
     /// Loads the model, which can take up to a minute, then starts waiting for audio.
     pub fn start(model: PathBuf, speed: UpdateSpeed, reports: Reports) -> Result<Self, String> {
         let mut transcriber = RollingTranscriber::default();
-        transcriber.step = update_interval(speed, 0.0, false);
+        transcriber.step = update_interval(speed, 0.0, Strain::None);
         let shared = Arc::new(Shared {
             state: Mutex::new(State {
                 transcriber,
@@ -137,7 +137,7 @@ fn run(shared: &Shared, mut recognizer: Recognizer, reports: &Reports) {
             }
             let update = state.transcriber.complete(&job, words.unwrap_or_default());
             if !job.is_final {
-                state.transcriber.step = update_interval(state.speed, took, false);
+                state.transcriber.step = update_interval(state.speed, took, Strain::None);
             }
             (update, state.transcriber.skipped(), state.transcriber.step)
         };

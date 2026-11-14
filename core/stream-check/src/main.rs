@@ -6,7 +6,7 @@
 //! depends on machine speed, so the two print identical output for identical behavior.
 
 use soundveil_core::{
-    CaptionUpdate, RollingTranscriber, SpeechGate, UpdateSpeed, Word, update_interval,
+    CaptionUpdate, RollingTranscriber, SpeechGate, Strain, UpdateSpeed, Word, update_interval,
 };
 use soundveil_whisper::Recognizer;
 use std::collections::HashMap;
@@ -231,7 +231,14 @@ fn main() {
         if let Some(auto) = option("auto")
             && !job.is_final
         {
-            transcriber.step = update_interval(UpdateSpeed::Auto, took, auto == 2.0);
+            let strain = if auto == 2.0 {
+                Strain::Hot
+            } else if auto == 3.0 {
+                Strain::Warm
+            } else {
+                Strain::None
+            };
+            transcriber.step = update_interval(UpdateSpeed::Auto, took, strain);
         }
         passes.push(took);
         lengths.push(job.samples.len() as f64 / 16_000.0);

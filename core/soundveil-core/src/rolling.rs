@@ -155,7 +155,7 @@ impl UpdateSpeed {
     pub fn detail(self) -> &'static str {
         match self {
             Self::Auto => {
-                "Keeps the GPU under about half load on this computer, and slows down when saving power or running hot."
+                "Keeps the GPU under about a third of its load on this computer, and eases off as it warms up or when saving power."
             }
             Self::Fastest => {
                 "Lowest delay. Uses the most GPU and battery, and text changes more as it settles."
@@ -177,14 +177,31 @@ impl UpdateSpeed {
     }
 }
 
-/// A fixed choice is always honored. Automatic rests as long as each pass took, so the GPU is
-/// busy about half the time at most, and doubles that when saving power or under heat.
-pub fn update_interval(speed: UpdateSpeed, pass_time: f64, constrained: bool) -> f64 {
+/// How hard the machine is being pushed, from the system's own signals. Warm is the first sign
+/// of heat, well before the system slows anything down. Hot is serious heat or a power-saving
+/// mode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Strain {
+    None,
+    Warm,
+    Hot,
+}
+
+/// A fixed choice is always honored. Automatic rests twice as long as each pass took, so the GPU
+/// is busy about a third of the time at most. Resting only as long as a pass took kept it half
+/// busy, which ran a laptop hot and its fans loud through a film. It rests longer still as the
+/// machine warms, so heat is answered before the fans have to.
+pub fn update_interval(speed: UpdateSpeed, pass_time: f64, strain: Strain) -> f64 {
     if let Some(seconds) = speed.seconds() {
         return seconds;
     }
-    let paced = (pass_time * 2.0).max(0.4);
-    if constrained { paced * 2.0 } else { paced }.min(3.0)
+    let paced = (pass_time * 3.0).max(0.5);
+    let eased = match strain {
+        Strain::None => paced,
+        Strain::Warm => paced * 1.5,
+        Strain::Hot => paced * 2.5,
+    };
+    eased.min(3.0)
 }
 
 #[derive(Clone, Debug)]
@@ -859,22 +876,26 @@ mod tests {
     }
 
     #[test]
-    fn automatic_keeps_the_gpu_under_half_load() {
-        assert_eq!(update_interval(UpdateSpeed::Auto, 0.1, false), 0.4);
-        assert_eq!(update_interval(UpdateSpeed::Auto, 0.6, false), 1.2);
-        assert_eq!(update_interval(UpdateSpeed::Auto, 9.0, false), 3.0);
+    fn automatic_keeps_the_gpu_under_a_third_of_its_load() {
+        assert_eq!(update_interval(UpdateSpeed::Auto, 0.1, Strain::None), 0.5);
+        assert_eq!(update_interval(UpdateSpeed::Auto, 0.25, Strain::None), 0.75);
+        assert_eq!(update_interval(UpdateSpeed::Auto, 9.0, Strain::None), 3.0);
     }
 
     #[test]
-    fn automatic_slows_down_under_pressure() {
-        assert_eq!(update_interval(UpdateSpeed::Auto, 0.1, true), 0.8);
-        assert_eq!(update_interval(UpdateSpeed::Auto, 2.0, true), 3.0);
+    fn automatic_eases_off_as_the_machine_warms() {
+        assert_eq!(
+            update_interval(UpdateSpeed::Auto, 0.25, Strain::Warm),
+            1.125
+        );
+        assert_eq!(update_interval(UpdateSpeed::Auto, 0.25, Strain::Hot), 1.875);
+        assert_eq!(update_interval(UpdateSpeed::Auto, 2.0, Strain::Hot), 3.0);
     }
 
     #[test]
     fn fixed_speeds_are_always_honored() {
-        assert_eq!(update_interval(UpdateSpeed::Fastest, 2.0, true), 0.2);
-        assert_eq!(update_interval(UpdateSpeed::Saver, 0.0, false), 1.5);
+        assert_eq!(update_interval(UpdateSpeed::Fastest, 2.0, Strain::Hot), 0.2);
+        assert_eq!(update_interval(UpdateSpeed::Saver, 0.0, Strain::None), 1.5);
     }
 
     #[test]
