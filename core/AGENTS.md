@@ -28,8 +28,9 @@ until the Mac app moves onto this crate. After changing logic in either language
 
 Do not describe either as verification of live capture, permissions, or an overlay.
 
-The settings in `RollingTranscriber` came from measurement. Keep the audio context the same
-for every pass, do not pass a prompt to Whisper, and do not cut audio on its word timestamps.
+The settings in `RollingTranscriber` came from measurement. Keep one audio context size
+per Whisper state, never give a final pass both timestamps and a small context, do not pass a
+prompt to Whisper, and do not cut audio on its word timestamps.
 Only add a word to the lists in `expressive.rs` if it is rarely ordinary dialogue.
 
 `resize.rs` counts from the top left, where the Mac original counts from the bottom left, and it
