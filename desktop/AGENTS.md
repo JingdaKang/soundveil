@@ -70,6 +70,10 @@ The interface may only be touched on its own thread. Worker threads use
 - Each window holds its own copy of the `CaptionLook` global, so `appearance.rs` sets both. The text
   shadow is copies of the text, because Slint's `Text` has no shadow and its software renderer
   ignores a stroke's width. Slint has no color picker either, so colors are swatches and a hex field.
+- The Mac app's typefaces, the top-to-bottom fill on highlighted words, and the dimming of lines
+  already read are not here yet.
+- Final passes ease only where the machine is slow. Nothing here reports heat or power saving yet,
+  though the Automatic speed's description says it eases off for both.
 - Wayland with no X11 layer can't report the pointer, so the badge never shows there and the way out
   is the shortcut or Settings. Through the X11 layer the position may go stale while the pointer is
   over a window not using that layer, with the same result. Neither has been run.
