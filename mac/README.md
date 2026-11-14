@@ -15,7 +15,7 @@ Open `dist/Soundveil.app` in Finder. This locally built app is ad-hoc signed, no
 5. Drag the caption panel to your preferred position. Pointing at the panel shows its controls, and each one names itself when you point at it: smaller and larger text, expand, click through, and hide. Drag any edge or corner to resize it; a larger panel shows more lines. **Expand** grows it upward for reading back, including text that has already faded. Size, position, text size, and caption style are remembered, and **Window → Reset Caption Overlay** restores the default. It floats above ordinary windows and requests full-screen/Spaces participation; exclusive full-screen applications may behave differently.
 6. Stop before changing source, model, or quiet-speech threshold. Stop keeps the words already shown and waits for any current inference call to finish before unloading the model.
 
-Captions roll up from the bottom of the panel. Words appear about a third of a second after they are spoken, dimmed while they may still change, and turn solid once two recognition passes agree. When the speaker pauses, the phrase is finalized and may be corrected slightly. The status line shows how far behind live the captions are.
+Captions roll up from the bottom of the panel. Words appear a little under a second after they are spoken, dimmed while they may still change, and turn solid once two recognition passes agree. The line being spoken is the brightest, and lines you have already read step back a little. When the speaker pauses, the phrase is finalized and may be corrected slightly. The status line shows how far behind live the captions are.
 
 Sound words ("haha", "whoa", "kaboom") and internet slang ("bruh", "no cap") appear in a warm accent, slightly larger, with a brief pop. Everyday words only count when shouted, so "Boom!" stands out and "the baby boom" does not. Laughter, applause, and music can appear as a small labeled pill when Whisper reports them. Turn word highlighting off with **Highlight sound words and slang**; pills stay on, as they describe sound rather than style it.
 
@@ -44,9 +44,9 @@ Open **Soundveil → Settings** or the gear in the main window. If you close the
 
 **Language** sets the app's own text: English, Simplified or Traditional Chinese, Japanese, Korean, Spanish, French, or German. **System default** follows your Mac and falls back to English. Choosing a language asks for a restart, which stops any captions that are running. Captions themselves stay in English.
 
-**Update speed** sets how often captions refresh, so you can suit your own Mac. A faster rate means less delay and more GPU and battery use. Automatic rests as long as each pass took, which keeps the GPU under about half load on any Mac, and slows down further in Low Power Mode or when the Mac is hot. A fixed choice is always honored. The change applies at once, even while captions are running.
+**Update speed** sets how often captions refresh, so you can suit your own Mac. A faster rate means less delay and more GPU and battery use. Automatic rests twice as long as each pass took, which keeps the GPU under about a third of its load on any Mac. It eases off further as the Mac warms up, and more again in Low Power Mode or when the Mac is hot. If the fans still run, choose **Efficient** or **Battery saver**, or a smaller model. A fixed choice is always honored. The change applies at once, even while captions are running.
 
-**Appearance** sets how captions look. The preview shows each change, and the overlay follows at once. Start from a style: **Default** (white on a translucent black box), **Text only** (no box, with a soft shadow), **Yellow on black**, **Black on white**, or **Yellow on blue**. Then adjust the text, background, and highlighted word colors, and the background and text opacity. Soundveil warns you when colors are hard to read against each other. Below 60% background opacity, text gets a shadow so it stays readable over the video.
+**Appearance** sets how captions look. The preview shows each change, and the overlay follows at once. Start from a style: **Default** (soft white on a translucent black box), **Text only** (no box, with a soft shadow), **Yellow on black**, **Black on white**, or **Yellow on blue**. Then choose a typeface (**Rounded** is the default; **Classic** is the system face, and there are **Serif** and **Typewriter**), and adjust the text, background, and highlighted word colors, and the background and text opacity. A style changes colors only and keeps your typeface. Soundveil warns you when colors are hard to read against each other. Below 60% background opacity, text gets a shadow so it stays readable over the video.
 
 **Keyboard shortcuts** work in every app, including while Chrome is in front, and need no extra permission. Click a shortcut to record a new one, or remove it. A shortcut needs ⌘, ⌃, or ⌥, or a function key, so it can't take over a key you type with. If macOS refuses one, another app is probably using it.
 
@@ -78,16 +78,20 @@ Only Large v3 Turbo has been measured with live captions. The rest of this table
 
 ## Performance on other Macs
 
-Soundveil only runs on Apple Silicon, so every supported Mac has a GPU. What varies is how fast it is, and memory: Large v3 Turbo needs about 1.9 GB while listening, which is a lot on an 8 GB Mac.
+Soundveil only runs on Apple Silicon, so every supported Mac has a GPU. What varies is how fast it is, and memory: Large v3 Turbo needs about 2.2 GB while listening, which is a lot on an 8 GB Mac.
 
-Slower Macs lose speed, not accuracy, and no audio is dropped. These figures come from `StreamCheck` on an M4 Pro, scaling each pass by the factor shown. They are simulations, not tests on those Macs.
+Slower Macs lose speed, and no audio is dropped. Where a full final pass would take about a second or more, final passes ease off as they do under strain, which costs some accuracy on the hardest audio only. These figures come from `StreamCheck` on an M4 Pro with Automatic, on a minute of dialogue, scaling each pass by the factor shown. The slower rows are simulations, not tests on those Macs.
 
 | Speed compared with an M4 Pro | Update rate | GPU busy | Words appear after |
 |---|---|---|---|
-| Same | about 0.4 s | 49% | 0.6 s |
-| Same, Low Power Mode or hot | about 0.8 s | 28% | 1.0 s |
-| 3× slower | about 1.2 s | 59% | 1.8 s |
-| 5× slower | about 2 s | 65% | 2.9 s |
+| Same | about 0.6 s | 36% | 0.8 s |
+| Same, warming up | about 0.9 s | 22% | 1.0 s |
+| Same, Low Power Mode or hot | about 1.5 s | 17% | 1.4 s |
+| 2× slower | about 0.9 s | 43% | 1.1 s |
+| 3× slower | about 1.4 s | 51% | 1.7 s |
+| 5× slower | about 2.7 s | 63% | 2.7 s |
+
+Dialogue under a film score keeps phrases long, which costs more: 39% on the M4 Pro, 26% warming up, and 18% hot. Before these settings the same two clips ran at 48% and 62%.
 
 Decoding on the CPU alone, which also works, was about 4.7× slower than the GPU on an M4 Pro.
 
@@ -165,7 +169,7 @@ package the app already in `dist/`. Requires the GitHub CLI (`gh`), signed in.
 ```mermaid
 flowchart LR
  C[Chrome or system audio] --> S[ScreenCaptureKit: serial capture queue]
- S --> R[AVAudioConverter: 48 kHz stereo to 16 kHz mono]
+ S --> R[Channels averaged, then AVAudioConverter: 48 kHz to 16 kHz mono]
  R --> V[Speech gate: pre-roll, pauses, endpoints]
  V --> B[Bounded phrase buffer]
  B --> P[Partial pass: greedy, display only]
@@ -180,11 +184,15 @@ Whisper has no native streaming, so this follows the approach of [Whisper-Stream
 - Capture and conversion use one serial queue. Inference and context destruction use another; model loading never blocks the main actor. A lock protects the transcriber state they share. UI work runs on the main actor. C pointers never cross into UI code.
 - **Partial passes** run over the current phrase one at a time, paced by the update speed. They use greedy decoding and exist only for display. Passes that find no words, as with music or noise, wait progressively longer, up to 2 s.
 - **The screen changes only when two passes in a row agree.** Whisper's guess at a cut-off phrase can swing wildly between passes, so a lone outlier is ignored. New words at the end are the exception: one is shown ahead of agreement to keep up.
-- **Final passes** use beam search over the whole phrase and produce the transcript. A phrase ends at a pause of 200 ms once it is at least 2.5 s long, or at any 600 ms silence. Pauses are measured against the speaker's recent level, so they are still found over a noise floor. A run with no pause is cut at its quietest point after 9 s.
+- **Final passes** use beam search over the whole phrase and produce the transcript. A phrase ends at a pause of 200 ms once it is at least 2.5 s long, or at any 600 ms silence. Pauses are measured against the speaker's recent level, so they are still found over a noise floor. A run with no pause is cut at its quietest point after 9 s, and words already on screen for the audio after the cut stay there until the next pass covers them.
 - **Audio is cut at pauses because Whisper's word timestamps are not reliable enough to cut on**: they bunch at the end of the audio, and cutting on them lost whole phrases. Alignment-based timestamps (DTW) were accurate but more than doubled the cost of a pass.
 - **No prompt is passed to Whisper.** Earlier text echoed into the transcript and made it invent phrases (18.8% word error against 1.0% without), and unpunctuated text removed punctuation for good.
-- **The audio context is fixed at 640** rather than Whisper's 1500, about 3 s of headroom over the longest phrase. The encoder dominates the cost and scales with it. It must not vary between passes: mixing sizes in one whisper context made the passes that followed collapse into nonsense.
-- Phrases with under 250 ms of speech are not decoded, because Whisper invents text from silence. Tokens per pass are capped and repeated phrases are cut, which stops Whisper's loops.
+- **Partial passes use a small audio context**: 320 for a phrase of up to 4.5 s, and 640 past that, against Whisper's 1500. The encoder dominates the cost and scales with it, and partial passes are most of the work. Giving them the full context did not make the words on screen any steadier.
+- **Final passes use the full context of 1500.** The transcript comes from these, and there are few of them. At 640 they made about twice the mistakes, and one repeated a whole sentence: with a small context Whisper's timestamps run short, so it ends the phrase early by its own clock and says it again.
+- **Under strain, final passes ease off** to a context of 640 with Whisper's timestamps turned off, for under half the cost. Without timestamps the repeats don't happen, and these passes match full ones except on the hardest audio. Strain means the Mac reports that it is warming up, or is in Low Power Mode.
+- Each context size decodes in a whisper state of its own, sharing one loaded model. Mixing sizes in one state made the passes that followed collapse into nonsense.
+- **Stereo is averaged to mono before conversion.** `AVAudioConverter` keeps only the left channel when it goes from two channels to one. Film dialogue sits in the centre, so averaging keeps all of it, and sound that differs between the sides drops by half.
+- Phrases with under 250 ms of speech are not decoded, because Whisper invents text from silence. Tokens per pass are capped at 10 a second and repeated phrases are cut, which stops Whisper's loops. A cap of 6 a second cut the ends off fast phrases.
 - If inference stalls, phrases awaiting a final pass are bounded at 24 s and the oldest is dropped. This bounds latency and memory **by deliberately losing coverage**, and the status line reports the seconds skipped. Partial passes always take the newest audio, so they cannot build a backlog.
 - The overlay places each word once from the words before it, so appended words never move text already on screen. Words fade in and a batch is staggered over about 0.3 s so it reads as a flow. Captions fade after eight seconds without new text, and stay available to Expand.
 - Word highlighting uses short, fixed word lists on the device, on the principle that when everything stands out nothing does. Fillers stay plain. Non-speech cues are allowed on final passes only, so they cannot make partial text flicker, and only laughter, applause, cheering, and music are shown.
