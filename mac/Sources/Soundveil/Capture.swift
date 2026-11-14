@@ -51,6 +51,17 @@ final class Capture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
   }
  }
  func stream(_ stream: SCStream, didStopWithError error: Error) { onError?(error.localizedDescription) }
+ // Nil for audio that is already mono, or in a layout this can't read, which is converted as it is.
+ private func mixedDown(_ input: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+  let channels = Int(input.format.channelCount), frames = Int(input.frameLength)
+  guard channels > 1, !input.format.isInterleaved, let data = input.floatChannelData,
+   let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: input.format.sampleRate, channels: 1, interleaved: false),
+   let mono = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: input.frameCapacity), let out = mono.floatChannelData?[0] else { return nil }
+  mono.frameLength = input.frameLength
+  let scale = 1 / Float(channels)
+  for i in 0..<frames { var sum: Float = 0; for c in 0..<channels { sum += data[c][i] }; out[i] = sum * scale }
+  return mono
+ }
  func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
   guard accepting, type == .audio, sampleBuffer.isValid,
    let description = sampleBuffer.formatDescription else { return }
@@ -68,14 +79,18 @@ final class Capture: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Send
   input.frameLength = input.frameCapacity
   let status = CMSampleBufferCopyPCMDataIntoAudioBufferList(sampleBuffer, at: 0, frameCount: Int32(input.frameLength), into: input.mutableAudioBufferList)
   guard status == noErr else { onError?(String(localized: "Cannot read captured PCM audio (\(status)).")); return }
+  // AVAudioConverter keeps only the left channel when it goes from stereo to mono, so the
+  // channels are averaged here first. Speech is mixed to the centre, and averaging keeps all of
+  // it while sound that differs between the sides drops by half.
+  let source = mixedDown(input) ?? input
   let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false)!
-  if inputFormat != format { converter = AVAudioConverter(from: format, to: target); inputFormat = format }
-  guard let converter, let output = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: AVAudioFrameCount(Double(input.frameLength) * 16000 / format.sampleRate) + 256) else { return }
+  if inputFormat != source.format { converter = AVAudioConverter(from: source.format, to: target); inputFormat = source.format }
+  guard let converter, let output = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: AVAudioFrameCount(Double(source.frameLength) * 16000 / format.sampleRate) + 256) else { return }
   var supplied = false
   var error: NSError?
   converter.convert(to: output, error: &error) { _, state in
    if supplied { state.pointee = .noDataNow; return nil }
-   supplied = true; state.pointee = .haveData; return input
+   supplied = true; state.pointee = .haveData; return source
   }
   if let error { onError?(error.localizedDescription); return }
   guard let data = output.floatChannelData else { return }
