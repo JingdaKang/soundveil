@@ -14,11 +14,12 @@ final class RollingTests: XCTestCase {
  func testAudioContextOutrunsTheLongestPhrase() {
   let t = fast(); XCTAssertGreaterThan(Double(t.audioContext), t.maxPhrase * 50 + 100)
  }
- func testEveryPassUsesTheSameAudioContext() {
+ func testFinalPassesUseTheFullAudioContext() {
   var t = fast(); t.ingest(audio(3)); let partial = t.nextJob()!
-  _ = t.complete(partial, words: []); t.ingest(.pause(at: 2.9, voiced: 2.5)); XCTAssertEqual(t.nextJob()!.audioContext, partial.audioContext)
+  _ = t.complete(partial, words: []); t.ingest(.pause(at: 2.9, voiced: 2.5)); let final = t.nextJob()!
+  XCTAssertEqual(final.audioContext, 1500)
  }
- func testTokenLimitAllowsFastSpeech() { XCTAssertGreaterThan(tokenLimit(forSeconds: 10), 60) }
+ func testTokenLimitAllowsFastSpeech() { XCTAssertGreaterThan(tokenLimit(forSeconds: 10), 100) }
  func testWordsPastACutAreFound() {
   XCTAssertEqual(texts(wordsBeyond(words("see past the smoke."), in: words("see past the smoke. Then we don't"))), "Then we don't")
   XCTAssertEqual(texts(wordsBeyond(words("I see past the smoke."), in: words("see past the smoke. Then we"))), "Then we")

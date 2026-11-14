@@ -30,7 +30,6 @@ func removingLoops(_ words: [Word]) -> [Word] {
  }
  return words
 }
-func commonPrefix(_ a: [Word], _ b: [Word]) -> Int { zip(a, b).prefix { $0.key == $1.key }.count }
 // A run with no pause is cut wherever it is quietest, so the words on screen can run past the
 // cut. This finds them: the words shown after the place where the final text ends. That place
 // must match on two words and sit near where the final text's length puts it, or nothing is kept.
@@ -44,6 +43,7 @@ func wordsBeyond(_ final: [Word], in shown: [Word]) -> [Word] {
  guard let best else { return [] }
  return Array(shown[(best + 1)...])
 }
+func commonPrefix(_ a: [Word], _ b: [Word]) -> Int { zip(a, b).prefix { $0.key == $1.key }.count }
 // Finds the quietest 100 ms of a recording, the safest place to cut a run with no pause.
 func quietestPoint(in samples: [Float]) -> Int {
  var best = 0, lowest = Float.infinity
@@ -114,10 +114,13 @@ public struct RollingTranscriber {
  public var minPhrase = 2.5      // Shorter phrases carry on through a pause.
  public var maxPhrase = 9.0      // Longer phrases are cut at their quietest point.
  public var capacity = 24.0      // Seconds kept. Past this, inference has stalled and audio is dropped.
- // Encoder frames, at 50 a second. Cost scales with this, so it is far below Whisper's 1500, but
- // it must outrun the longest phrase or words are lost. It must also be the same for every
- // pass: mixing sizes in one whisper context corrupted the passes that followed.
+ // Encoder frames for a partial pass, at 50 a second. Cost scales with this, so it is far below
+ // Whisper's 1500, but it must outrun the longest phrase or words are lost.
  public var audioContext = 640
+ // Encoder frames for a final pass. The transcript comes from these, and at Whisper's full 1500
+ // they made about half the mistakes on speech under music or noise. Each size decodes in a
+ // whisper state of its own: mixing sizes in one state corrupted the passes that followed.
+ public var finalContext = 1500
  public var tailWords = 1        // Words shown beyond what two passes agreed on.
  public var minVoiced = 0.25     // Phrases with less speech are not decoded; Whisper invents text from silence.
  public var partialBeam: Int32 = 1
@@ -173,7 +176,7 @@ public struct RollingTranscriber {
   if let phrase = closing.first {
    busy = true
    let seconds = Double(phrase.samples.count)/16000
-   return DecodeJob(samples: phrase.samples, start: phrase.start, audioContext: audioContext, maxTokens: tokenLimit(forSeconds: seconds), beam: finalBeam, isFinal: true)
+   return DecodeJob(samples: phrase.samples, start: phrase.start, audioContext: finalContext, maxTokens: tokenLimit(forSeconds: seconds), beam: finalBeam, isFinal: true)
   }
   // Music or noise passes the gate but gives no words, so each empty pass waits longer.
   let wait = min(max(2, step), step * pow(2, Double(min(emptyPasses, 4))))
