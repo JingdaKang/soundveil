@@ -117,6 +117,10 @@ public struct RollingTranscriber {
  // Encoder frames for a partial pass, at 50 a second. Cost scales with this, so it is far below
  // Whisper's 1500, but it must outrun the longest phrase or words are lost.
  public var audioContext = 640
+ // Most phrases end within a few seconds, and a partial pass over a short one gets by on half
+ // the encoder work. Past shortPhrase seconds a phrase moves up to audioContext.
+ public var shortContext = 320
+ public var shortPhrase = 4.5
  // Encoder frames for a final pass. The transcript comes from these, and at Whisper's full 1500
  // they made about half the mistakes on speech under music or noise. Each size decodes in a
  // whisper state of its own: mixing sizes in one state corrupted the passes that followed.
@@ -182,7 +186,7 @@ public struct RollingTranscriber {
   let wait = min(max(2, step), step * pow(2, Double(min(emptyPasses, 4))))
   guard length >= firstDecode, audioEnd - decodedEnd >= wait else { return nil }
   busy = true; decodedEnd = audioEnd
-  return DecodeJob(samples: buffer, start: bufferStart, audioContext: audioContext, maxTokens: tokenLimit(forSeconds: length), beam: partialBeam, isFinal: false)
+  return DecodeJob(samples: buffer, start: bufferStart, audioContext: length <= shortPhrase ? shortContext : audioContext, maxTokens: tokenLimit(forSeconds: length), beam: partialBeam, isFinal: false)
  }
  public mutating func complete(_ job: DecodeJob, words: [Word]) -> CaptionUpdate {
   busy = false

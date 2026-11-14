@@ -19,6 +19,10 @@ final class RollingTests: XCTestCase {
   _ = t.complete(partial, words: []); t.ingest(.pause(at: 2.9, voiced: 2.5)); let final = t.nextJob()!
   XCTAssertEqual(final.audioContext, 1500)
  }
+ func testShortPhrasesGetLighterPartialPasses() {
+  var t = fast(); t.ingest(audio(3)); let short = t.nextJob()!; XCTAssertEqual(short.audioContext, 320)
+  _ = t.complete(short, words: []); t.ingest(audio(2, at: 3)); XCTAssertEqual(t.nextJob()!.audioContext, 640)
+ }
  func testTokenLimitAllowsFastSpeech() { XCTAssertGreaterThan(tokenLimit(forSeconds: 10), 100) }
  func testWordsPastACutAreFound() {
   XCTAssertEqual(texts(wordsBeyond(words("see past the smoke."), in: words("see past the smoke. Then we don't"))), "Then we don't")
