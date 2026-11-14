@@ -125,8 +125,11 @@ impl Screen {
             self.first_seen.clear();
         }
         if let Some(tentative) = &update.tentative {
+            let texts = tentative.iter().map(|w| w.text.clone()).collect();
             if update.committed.is_empty() {
-                self.show(tentative.iter().map(|w| w.text.clone()).collect());
+                self.show(texts);
+            } else {
+                self.showing = texts;
             }
             for (i, word) in tentative.iter().enumerate() {
                 self.first_seen.push((key(&word.text), i, now));

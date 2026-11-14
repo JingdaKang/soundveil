@@ -59,6 +59,27 @@ fn removing_loops(words: Vec<Word>) -> Vec<Word> {
     words
 }
 
+/// A run with no pause is cut wherever it is quietest, so the words on screen can run past the
+/// cut. This finds them: the words shown after the place where the final text ends. That place
+/// must match on two words and sit near where the final text's length puts it, or nothing is
+/// kept.
+fn words_beyond(last_pass: &[Word], shown: &[Word]) -> Vec<Word> {
+    if last_pass.len() < 2 || shown.len() <= 2 {
+        return Vec::new();
+    }
+    let end = last_pass.len() - 1;
+    let (last, before) = (last_pass[end].key(), last_pass[end - 1].key());
+    let mut best: Option<usize> = None;
+    for i in 1..shown.len() {
+        if shown[i].key() == last && shown[i - 1].key() == before && i.abs_diff(end) <= 3 {
+            if best.is_none_or(|b| i.abs_diff(end) < b.abs_diff(end)) {
+                best = Some(i);
+            }
+        }
+    }
+    best.map_or_else(Vec::new, |i| shown[i + 1..].to_vec())
+}
+
 fn common_prefix(a: &[Word], b: &[Word]) -> usize {
     a.iter()
         .zip(b)
@@ -363,13 +384,20 @@ impl RollingTranscriber {
         let mut update = CaptionUpdate::default();
         let pass = removing_loops(words);
         if job.is_final {
+            // Words already shown for audio after the cut stay up until the next pass covers
+            // them. Clearing them made the end of every long run blink out and come back.
+            let rest = if self.closing.len() == 1 && self.length() >= self.first_decode / 2.0 {
+                words_beyond(&pass, &self.shown)
+            } else {
+                Vec::new()
+            };
             self.closing.pop_front();
             self.previous.clear();
-            self.shown.clear();
+            self.shown = rest.clone();
             self.empty_passes = 0;
             update.sentences = self.assembler.add(&pass);
             update.committed = pass;
-            update.tentative = Some(Vec::new());
+            update.tentative = Some(rest);
         } else if self.closing.is_empty() && !self.buffer.is_empty() {
             // Whisper's guess at a cut-off phrase can swing wildly from one pass to the next, so
             // what is on screen only changes when two passes in a row agree. A lone outlier is
@@ -539,6 +567,49 @@ mod tests {
     #[test]
     fn token_limit_allows_fast_speech() {
         assert!(token_limit(10.0) > 60);
+    }
+
+    #[test]
+    fn words_past_a_cut_are_found() {
+        let beyond = |a: &str, b: &str| texts(&words_beyond(&words(a), &words(b)));
+        assert_eq!(
+            beyond("see past the smoke.", "see past the smoke. Then we don't"),
+            "Then we don't"
+        );
+        assert_eq!(
+            beyond("I see past the smoke.", "see past the smoke. Then we"),
+            "Then we"
+        );
+        assert_eq!(beyond("see past the smoke.", "see past the smoke."), "");
+        assert_eq!(
+            beyond("see past the fire.", "see past the smoke. Then we"),
+            ""
+        );
+        assert_eq!(
+            beyond(
+                "the smoke.",
+                "the smoke. one two three four the smoke. five"
+            ),
+            "one two three four the smoke. five"
+        );
+    }
+
+    #[test]
+    fn words_past_a_forced_cut_stay_on_screen() {
+        let mut t = fast();
+        t.ingest(audio(8.5, 0.0));
+        let partial = t.next_job().unwrap();
+        t.complete(&partial, words("one two three four five six"));
+        t.ingest(audio(0.3, 8.5));
+        let second = t.next_job().unwrap();
+        t.complete(&second, words("one two three four five six"));
+        t.ingest(audio(0.3, 8.8));
+        let last = t.next_job().unwrap();
+        assert!(last.is_final);
+        let update = t.complete(&last, words("one two three four"));
+        assert_eq!(texts(&update.committed), "one two three four");
+        assert_eq!(texts(update.tentative.as_deref().unwrap()), "five six");
+        assert_eq!(update.stable, 0);
     }
 
     #[test]
