@@ -15,8 +15,10 @@ public struct CaptionUpdate: Sendable {
  public var sentences: [Caption] = []
  public init() {}
 }
-// Fast English speech is under 5 tokens a second, so a longer result is Whisper looping.
-func tokenLimit(forSeconds seconds: Double) -> Int { Int(seconds * 6) + 12 }
+// Whisper loops at the edge of cut-off audio, and this bounds what a loop can cost. Rapid film
+// dialogue runs to about 9 tokens a second with punctuation. A lower cap of 6 cut the ends
+// off fast phrases, and those words were lost for good.
+func tokenLimit(forSeconds seconds: Double) -> Int { Int(seconds * 10) + 12 }
 // Cuts a hypothesis where a phrase of up to 4 words repeats three times running. Whisper
 // loops like this at the edge of the audio.
 func removingLoops(_ words: [Word]) -> [Word] {
