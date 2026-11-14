@@ -94,12 +94,14 @@ public struct CaptionPreset: Identifiable, Sendable {
  // stand apart from its own text color, so it changes with the pair.
  public static let all = [
   CaptionPreset(name: String(localized: "Default"), style: .standard),
-  CaptionPreset(name: String(localized: "Text only"), style: CaptionStyle(text: CaptionColor(hex: 0xFFFFFF), background: CaptionColor(hex: 0x000000), highlight: CaptionColor(hex: 0xFFD14D), backgroundOpacity: 0)),
+  CaptionPreset(name: String(localized: "Text only"), style: CaptionStyle(text: CaptionColor(hex: 0xFFFFFF), background: CaptionColor(hex: 0x000000), highlight: CaptionColor(hex: 0xFFC233), backgroundOpacity: 0)),
   CaptionPreset(name: String(localized: "Yellow on black"), style: CaptionStyle(text: CaptionColor(hex: 0xFFE600), background: CaptionColor(hex: 0x000000), highlight: CaptionColor(hex: 0x5CE1E6), backgroundOpacity: 1)),
   CaptionPreset(name: String(localized: "Black on white"), style: CaptionStyle(text: CaptionColor(hex: 0x000000), background: CaptionColor(hex: 0xFFFFFF), highlight: CaptionColor(hex: 0x0B57D0), backgroundOpacity: 1)),
   CaptionPreset(name: String(localized: "Yellow on blue"), style: CaptionStyle(text: CaptionColor(hex: 0xFFE600), background: CaptionColor(hex: 0x0A2A8C), highlight: CaptionColor(hex: 0xFFFFFF), backgroundOpacity: 1)),
  ]
 }
 public extension CaptionStyle {
- static let standard = CaptionStyle(text: CaptionColor(hex: 0xFFFFFF), background: CaptionColor(hex: 0x000000), highlight: CaptionColor(hex: 0xFFD14D), backgroundOpacity: 0.78)
+ // A soft white is easier on the eyes than pure white over a long film, and the highlight is a
+ // warm gold that stays clear of it.
+ static let standard = CaptionStyle(text: CaptionColor(hex: 0xF5F2EA), background: CaptionColor(hex: 0x000000), highlight: CaptionColor(hex: 0xFFC233), backgroundOpacity: 0.78)
 }

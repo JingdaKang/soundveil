@@ -14,8 +14,8 @@ final class CaptionStyleTests: XCTestCase {
   XCTAssertEqual(black.contrast(with: white), 21, accuracy: 0.001)
   XCTAssertEqual(gray.contrast(with: white), 4.48, accuracy: 0.01)
  }
- func testDefaultKeepsTheOriginalLook() {
-  XCTAssertEqual(CaptionStyle.standard.text, white)
+ func testDefaultIsSoftWhiteOnATranslucentBlackBox() {
+  XCTAssertEqual(CaptionStyle.standard.text, CaptionColor(hex: 0xF5F2EA))
   XCTAssertEqual(CaptionStyle.standard.background, black)
   XCTAssertEqual(CaptionStyle.standard.backgroundOpacity, 0.78)
   XCTAssertEqual(CaptionStyle.standard.textOpacity, 1)
