@@ -21,6 +21,9 @@ final class Inference: @unchecked Sendable {
   try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
    queue.async {
     self.recognizer = Recognizer(path: path)
+    // Each size's working memory is set up here, so the first passes aren't slowed by it.
+    let sizes = self.lock.withLock { [self.transcriber.shortContext, self.transcriber.audioContext, self.transcriber.finalContext] }
+    if self.recognizer?.prepare(contexts: sizes) == false { self.recognizer = nil }
     if self.recognizer == nil { continuation.resume(throwing: AppError.message(String(localized: "Cannot load model. Check the download and available memory."))) }
     else { continuation.resume() }
    }

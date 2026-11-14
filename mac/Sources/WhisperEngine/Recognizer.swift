@@ -10,6 +10,8 @@ public final class Recognizer: @unchecked Sendable {
   self.context = context
  }
  deinit { fc_destroy(context) }
+ // Sets up the working memory for each audio context size ahead of the first pass that needs it.
+ public func prepare(contexts: [Int]) -> Bool { contexts.allSatisfy { fc_prepare(context, Int32($0)) != 0 } }
  public func decode(_ job: DecodeJob, beam: Int32? = nil) -> [Word]? {
   guard !job.samples.isEmpty else { return [] }
   let code = job.samples.withUnsafeBufferPointer { samples in

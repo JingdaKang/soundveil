@@ -59,6 +59,7 @@ if let v = options["finalctx"] { transcriber.finalContext = Int(v) }
 if let v = options["shortctx"] { transcriber.shortContext = Int(v) }
 if let v = options["short"] { transcriber.shortPhrase = v }
 transcriber.easeFinals = options["ease"] == 1 || (options["auto"] ?? 0) >= 2
+_ = recognizer.prepare(contexts: [transcriber.shortContext, transcriber.audioContext, transcriber.finalContext])
 let show_ = options["show"] != nil
 var finalTime = 0.0
 var fed = 0, now = 0.0, passes: [Double] = [], lengths: [Double] = []
