@@ -25,16 +25,43 @@ public struct CaptionColor: Codable, Equatable, Hashable, Sendable {
   return CaptionColor(red: mix(red, other.red), green: mix(green, other.green), blue: mix(blue, other.blue))
  }
 }
+// The letterforms captions are set in. Rounded is the default: its softer shapes read as speech
+// rather than as interface text. Classic is the system face captions used at first.
+public enum CaptionTypeface: String, Codable, CaseIterable, Identifiable, Sendable {
+ case rounded, classic, serif, typewriter
+ public var id: String { rawValue }
+ public var name: String {
+  switch self {
+  case .rounded: return String(localized: "Rounded")
+  case .classic: return String(localized: "Classic")
+  case .serif: return String(localized: "Serif")
+  case .typewriter: return String(localized: "Typewriter")
+  }
+ }
+}
 public struct CaptionStyle: Codable, Equatable, Sendable {
  public var text: CaptionColor
  public var background: CaptionColor
  public var highlight: CaptionColor // Sound words, slang, and cues such as music.
  public var backgroundOpacity: Double
  public var textOpacity: Double
- public init(text: CaptionColor, background: CaptionColor, highlight: CaptionColor, backgroundOpacity: Double, textOpacity: Double = 1) {
+ public var typeface: CaptionTypeface
+ public init(text: CaptionColor, background: CaptionColor, highlight: CaptionColor, backgroundOpacity: Double, textOpacity: Double = 1, typeface: CaptionTypeface = .rounded) {
   self.text = text; self.background = background; self.highlight = highlight
-  self.backgroundOpacity = backgroundOpacity; self.textOpacity = textOpacity
+  self.backgroundOpacity = backgroundOpacity; self.textOpacity = textOpacity; self.typeface = typeface
  }
+ // Styles saved before typefaces existed have none, and take the default.
+ public init(from decoder: Decoder) throws {
+  let values = try decoder.container(keyedBy: CodingKeys.self)
+  text = try values.decode(CaptionColor.self, forKey: .text)
+  background = try values.decode(CaptionColor.self, forKey: .background)
+  highlight = try values.decode(CaptionColor.self, forKey: .highlight)
+  backgroundOpacity = try values.decode(Double.self, forKey: .backgroundOpacity)
+  textOpacity = try values.decode(Double.self, forKey: .textOpacity)
+  typeface = (try? values.decodeIfPresent(CaptionTypeface.self, forKey: .typeface)) ?? .rounded
+ }
+ // A preset sets colors and leaves the typeface alone, so the two can be compared apart.
+ public func with(typeface: CaptionTypeface) -> CaptionStyle { var copy = self; copy.typeface = typeface; return copy }
  public static let textOpacities = 0.4...1.0
  // Below this the video behind matters more than the background color. White text on black at
  // this opacity still clears 4.5:1 with a white video behind it.

@@ -84,6 +84,7 @@ private struct StylePreview: View {
 }
 private struct StyleTile: View {
  let preset: CaptionPreset
+ let typeface: CaptionTypeface
  let selected: Bool
  let action: () -> Void
  var body: some View {
@@ -92,7 +93,7 @@ private struct StyleTile: View {
     ZStack {
      CaptionBackdrop()
      RoundedRectangle(cornerRadius: 5).fill(preset.style.background.color.opacity(preset.style.backgroundOpacity)).padding(5)
-     Text(verbatim: "Aa").font(.system(size: 17, weight: .semibold)).foregroundStyle(preset.style.text.color).modifier(CaptionTextLook(style: preset.style))
+     Text(verbatim: "Aa").font(typeface.font(size: 17)).foregroundStyle(preset.style.text.color).modifier(CaptionTextLook(style: preset.style))
     }
     .frame(height: 46).clipShape(RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.15), lineWidth: selected ? 2 : 1))
@@ -146,9 +147,11 @@ struct SettingsView: View {
     StylePreview(style: state.captionStyle)
     HStack(alignment: .top, spacing: 8) {
      ForEach(CaptionPreset.all) { preset in
-      StyleTile(preset: preset, selected: state.captionStyle == preset.style) { state.captionStyle = preset.style }
+      let style = preset.style.with(typeface: state.captionStyle.typeface)
+      StyleTile(preset: preset, typeface: style.typeface, selected: state.captionStyle == style) { state.captionStyle = style }
      }
     }
+    Picker("Typeface", selection: $state.captionStyle.typeface) { ForEach(CaptionTypeface.allCases) { Text($0.name).tag($0) } }
     ColorPicker("Text", selection: color(\.text), supportsOpacity: false)
     ColorPicker("Background", selection: color(\.background), supportsOpacity: false)
     ColorPicker("Highlighted words", selection: color(\.highlight), supportsOpacity: false)

@@ -19,7 +19,7 @@ import OverlayCore
  @Published var placeholder = String(localized: "Your live captions appear here")
  @Published var fontSize: Double = 28 { didSet { if fontSize != oldValue { widths = [:]; relayout() } } }
  @Published var highlight = true { didSet { if highlight != oldValue { widths = [:]; relayout() } } }
- @Published var style = CaptionStyle.standard
+ @Published var style = CaptionStyle.standard { didSet { if style.typeface != oldValue.typeface { widths = [:]; relayout() } } }
  @Published var hovering = false
  @Published var expanded = false { didSet { if expanded != oldValue { publish() } } }
  var lineHeight: Double { (fontSize * 1.3).rounded() }
@@ -53,12 +53,11 @@ import OverlayCore
   self.placeholder = placeholder; publish()
  }
  private func newCursor() -> WordPlacer { WordPlacer(space: (fontSize * 0.26).rounded(), maxWidth: width > 0 ? width : 800) }
- // Highlighted words are 10% larger, and a cue is a small pill, so each is measured as drawn.
+ // Highlighted words are a little larger, and a cue is a small pill, so each is measured as drawn.
  private func measure(_ text: String, _ style: WordStyle) -> Double {
   let key = "\(style)|\(text)"
   if let known = widths[key] { return known }
-  let size = style == .cue ? fontSize * 0.68 : style == .plain ? fontSize : fontSize * 1.1
-  let font = NSFont.systemFont(ofSize: size, weight: style == .plain ? .semibold : .bold)
+  let font = self.style.typeface.nsFont(size: fontSize * style.scale, strong: style.isStrong)
   var value = ceil(NSAttributedString(string: text, attributes: [.font: font]).size().width)
   if style == .cue { value += 20 }
   if widths.count > 2000 { widths = [:] }
@@ -137,6 +136,32 @@ private struct PopIn<Content: View>: View {
    .onAppear { withAnimation(.spring(response: 0.24, dampingFraction: 0.55)) { landed = true } }
  }
 }
+extension WordStyle {
+ var scale: Double { switch self { case .plain: return 1; case .cue: return 0.66; default: return 1.08 } }
+ var isStrong: Bool { self == .sound || self == .slang }
+}
+// One source for the font, as SwiftUI draws it and as AppKit measures it, so words are placed
+// by the widths they really have.
+extension CaptionTypeface {
+ private var design: (Font.Design, NSFontDescriptor.SystemDesign) {
+  switch self {
+  case .rounded: return (.rounded, .rounded)
+  case .classic: return (.default, .default)
+  case .serif: return (.serif, .serif)
+  case .typewriter: return (.monospaced, .monospaced)
+  }
+ }
+ // Rounded and serif strokes look heavier than the system face at the same weight.
+ private func weight(strong: Bool) -> (Font.Weight, NSFont.Weight) {
+  if strong { return self == .classic ? (.bold, .bold) : (.heavy, .heavy) }
+  return self == .classic ? (.semibold, .semibold) : (.medium, .medium)
+ }
+ func font(size: Double, strong: Bool = false) -> Font { .system(size: size, weight: weight(strong: strong).0, design: design.0) }
+ func nsFont(size: Double, strong: Bool = false) -> NSFont {
+  let base = NSFont.systemFont(ofSize: size, weight: weight(strong: strong).1)
+  return base.fontDescriptor.withDesign(design.1).flatMap { NSFont(descriptor: $0, size: size) } ?? base
+ }
+}
 // One word as drawn, shared by the overlay and the preview in Settings.
 struct CaptionWord: View {
  let text: String
@@ -146,12 +171,14 @@ struct CaptionWord: View {
  var body: some View {
   switch kind {
   case .plain:
-   Text(text).font(.system(size: fontSize, weight: .semibold)).foregroundStyle(style.text.color)
+   Text(text).font(style.typeface.font(size: fontSize)).foregroundStyle(style.text.color)
   case .sound, .slang:
-   PopIn { Text(text).font(.system(size: fontSize * 1.1, weight: .bold)).foregroundStyle(style.highlight.color) }
+   PopIn {
+    Text(text).font(style.typeface.font(size: fontSize * kind.scale, strong: true)).foregroundStyle(style.highlight.color)
+   }
   case .cue:
    PopIn {
-    Text(text).font(.system(size: fontSize * 0.68, weight: .semibold)).foregroundStyle(style.highlight.color)
+    Text(text).font(style.typeface.font(size: fontSize * kind.scale)).foregroundStyle(style.highlight.color)
      .padding(.horizontal, 10).frame(height: fontSize * 1.04)
      .background(style.highlight.color.opacity(0.14), in: Capsule())
      .overlay(Capsule().strokeBorder(style.highlight.color.opacity(0.45)))
@@ -178,11 +205,12 @@ struct CaptionTextLook: ViewModifier {
 struct CaptionLines: View {
  @ObservedObject var feed: CaptionFeed
  let rows: Int
- private var font: Font { .system(size: feed.fontSize, weight: .semibold) }
- private var top: Int { (feed.items.last?.line ?? 0) - rows + 1 }
+ private var font: Font { feed.style.typeface.font(size: feed.fontSize) }
+ private var newest: Int { feed.items.last?.line ?? 0 }
+ private var top: Int { newest - rows + 1 }
  // Larger words sit up by their extra height so every word shares a baseline.
  private func lift(_ item: CaptionFeed.Item) -> Double {
-  switch item.style { case .plain: return 0; case .cue: return feed.fontSize * 0.1; default: return -feed.fontSize * 0.12 }
+  switch item.style { case .plain: return 0; case .cue: return feed.fontSize * 0.1; default: return -feed.fontSize * 0.1 }
  }
  private func word(_ item: CaptionFeed.Item) -> some View {
   CaptionWord(text: item.text, kind: item.style, fontSize: feed.fontSize, style: feed.style)

@@ -19,7 +19,19 @@ final class CaptionStyleTests: XCTestCase {
   XCTAssertEqual(CaptionStyle.standard.background, black)
   XCTAssertEqual(CaptionStyle.standard.backgroundOpacity, 0.78)
   XCTAssertEqual(CaptionStyle.standard.textOpacity, 1)
+  XCTAssertEqual(CaptionStyle.standard.typeface, .rounded)
   XCTAssertFalse(CaptionStyle.standard.isSeeThrough)
+ }
+ func testStylesSavedBeforeTypefacesTakeTheDefault() {
+  let old = Data(#"{"text":{"hex":16777215},"background":{"hex":0},"highlight":{"hex":16765261},"backgroundOpacity":0.5,"textOpacity":1}"#.utf8)
+  let style = CaptionStyle(data: old)
+  XCTAssertEqual(style?.typeface, .rounded)
+  XCTAssertEqual(style?.backgroundOpacity, 0.5)
+ }
+ func testATypefaceSurvivesSavingAndLeavesColorsAlone() {
+  let style = CaptionPreset.all[2].style.with(typeface: .serif)
+  XCTAssertEqual(CaptionStyle(data: style.encoded())?.typeface, .serif)
+  XCTAssertEqual(style.with(typeface: .rounded), CaptionPreset.all[2].style)
  }
  func testPresetsAreReadable() {
   for preset in CaptionPreset.all {
