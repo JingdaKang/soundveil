@@ -3,6 +3,7 @@
 typedef void *FCContext;
 FCContext fc_create_device(const char *path, int use_gpu);
 void fc_destroy(FCContext ctx);
+int fc_prepare(FCContext ctx, int audio_ctx);
 int fc_stream(FCContext ctx, const float *samples, int count, int audio_ctx, int beam, int max_tokens, int cues);
 int fc_count(FCContext ctx);
 int fc_tokens(FCContext ctx, int segment);
