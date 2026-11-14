@@ -45,8 +45,8 @@ on disk and upstream, so renaming one orphans existing downloads.
 
 The rolling pipeline's settings came from measurement, and README.md explains why.
 Check any change to them with StreamCheck against a reference transcript. In particular:
-keep the audio context the same for every pass, do not pass a prompt to Whisper, and do
-not cut audio on its word timestamps. Keep highlighting sparing: only add a word to the
+keep one audio context size per whisper state, never give a final pass both timestamps and a
+small context, do not pass a prompt to Whisper, and do not cut audio on its word timestamps. Keep highlighting sparing: only add a word to the
 lists in `Expressive.swift` if it is rarely ordinary dialogue.
 
 The overlay panel never takes focus while captions run behind Chrome, so SwiftUI hover and
