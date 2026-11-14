@@ -60,6 +60,7 @@ if let v = options["shortctx"] { transcriber.shortContext = Int(v) }
 if let v = options["short"] { transcriber.shortPhrase = v }
 transcriber.easeFinals = options["ease"] == 1 || (options["auto"] ?? 0) >= 2
 let show_ = options["show"] != nil
+var finalTime = 0.0
 var fed = 0, now = 0.0, passes: [Double] = [], lengths: [Double] = []
 var committed = 0, changes = 0, showing: [String] = [], firstSeen: [(key: String, position: Int, time: Double)] = []
 var firstShown: [Double] = [], settled: [Double] = [], transcript: [String] = [], finals: [Double] = []
@@ -104,7 +105,11 @@ while true {
  let words = recognizer.decode(job) ?? []
  // slow=3 simulates a Mac three times slower. pass= fixes the time of every pass, so runs repeat exactly.
  let took = options["pass"] ?? Date().timeIntervalSince(began) * (options["slow"] ?? 1)
- if options["auto"] != nil, !job.isFinal { transcriber.step = updateInterval(.auto, passTime: took, strain: options["auto"] == 2 ? .hot : options["auto"] == 3 ? .warm : .none) }
+ if let auto = options["auto"] {
+  let strain: Strain = auto == 2 ? .hot : auto == 3 ? .warm : .none
+  if job.isFinal { finalTime = fullFinalTime(finalTime, took: took, eased: !job.timestamps) } else { transcriber.step = updateInterval(.auto, passTime: took, strain: strain) }
+  transcriber.easeFinals = options["ease"] == 1 || easesFinals(strain: strain, finalTime: finalTime)
+ }
  passes.append(took); lengths.append(Double(job.samples.count)/16000); if job.isFinal { finals.append(took) }
  now += took; feed(until: now)
  record(transcriber.complete(job, words: words))

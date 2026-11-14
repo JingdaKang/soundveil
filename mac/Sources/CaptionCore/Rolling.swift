@@ -104,6 +104,17 @@ public func updateInterval(_ speed: UpdateSpeed, passTime: Double, strain: Strai
  case .hot: return min(3, paced * 2.5)
  }
 }
+// What a full final pass takes on this machine, learned from the final passes that have run. An
+// eased one costs under half as much (241 ms against 509 ms on an M4 Pro), so it counts at what
+// a full one would have taken. Halfway to each new figure, so one slow pass doesn't decide it.
+public func fullFinalTime(_ known: Double, took: Double, eased: Bool) -> Double {
+ let full = eased ? took * 2.1 : took
+ return known == 0 ? full : (known + full) / 2
+}
+// Full final passes are for machines with room for them. They ease under strain, and where one
+// takes this long: a phrase ends every few seconds, so slower than this and final passes alone
+// would keep the GPU busy a third of the time.
+public func easesFinals(strain: Strain, finalTime: Double) -> Bool { strain != .none || finalTime > 0.9 }
 // Whisper has no native streaming, and its word timestamps are too unreliable to cut audio
 // on. So partial passes over the current phrase are for display only, and the transcript comes
 // from one final pass over each phrase, cut at a pause. This is a pure state machine, so the
@@ -126,8 +137,8 @@ public struct RollingTranscriber {
  // they made about half the mistakes on speech under music or noise. Each size decodes in a
  // whisper state of its own: mixing sizes in one state corrupted the passes that followed.
  public var finalContext = 1500
- // Set while the machine is under strain. Final passes then run at the partial context for under
- // half the cost. They must also drop Whisper's timestamps: with those and a small context, a
+ // Set while the machine is under strain or too slow for full final passes: see easesFinals.
+ // Final passes then run at the partial context for under half the cost. They must also drop Whisper's timestamps: with those and a small context, a
  // final pass could end a phrase early by its own clock and then repeat it. Eased passes match
  // full ones except on the hardest audio, where they make about half again as many mistakes.
  public var easeFinals = false

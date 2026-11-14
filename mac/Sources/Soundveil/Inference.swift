@@ -14,6 +14,7 @@ final class Inference: @unchecked Sendable {
  private var recognizer: Recognizer?
  private var lastStatus = Date.distantPast
  private var speed = UpdateSpeed.auto
+ private var finalTime = 0.0
  var onUpdate: (@Sendable (CaptionUpdate) -> Void)?
  var onStatus: (@Sendable (String) -> Void)?
  func load(path: String) async throws {
@@ -54,7 +55,8 @@ final class Inference: @unchecked Sendable {
    let update = transcriber.complete(job, words: words ?? [])
    let skipped = transcriber.skipped
    if !job.isFinal { transcriber.step = updateInterval(speed, passTime: took, strain: strain) }
-   transcriber.easeFinals = strain != .none
+   if job.isFinal, words != nil { finalTime = fullFinalTime(finalTime, took: took, eased: !job.timestamps) }
+   transcriber.easeFinals = easesFinals(strain: strain, finalTime: finalTime)
    let interval = transcriber.step
    lock.unlock()
    guard publish else { continue }

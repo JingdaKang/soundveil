@@ -169,6 +169,19 @@ final class RollingTests: XCTestCase {
   XCTAssertEqual(updateInterval(.auto, passTime: 0.25, strain: .hot), 1.875)
   XCTAssertEqual(updateInterval(.auto, passTime: 2, strain: .hot), 3)
  }
+ func testFinalPassesEaseUnderStrainOrWhereTheyAreSlow() {
+  XCTAssertFalse(easesFinals(strain: .none, finalTime: 0)); XCTAssertFalse(easesFinals(strain: .none, finalTime: 0.5))
+  XCTAssertTrue(easesFinals(strain: .none, finalTime: 1.5))
+  XCTAssertTrue(easesFinals(strain: .warm, finalTime: 0.5)); XCTAssertTrue(easesFinals(strain: .hot, finalTime: 0))
+ }
+ func testAnEasedFinalPassCountsAtWhatAFullOneWouldTake() {
+  XCTAssertEqual(fullFinalTime(0, took: 0.5, eased: false), 0.5)
+  XCTAssertEqual(fullFinalTime(0, took: 0.5, eased: true), 1.05, accuracy: 0.001)
+  XCTAssertEqual(fullFinalTime(1.5, took: 0.5, eased: false), 1.0)
+  // A slow machine stays eased: its eased passes still show that full ones would be slow.
+  var known = 1.5; for _ in 0..<5 { known = fullFinalTime(known, took: 0.72, eased: true) }
+  XCTAssertTrue(easesFinals(strain: .none, finalTime: known))
+ }
  func testFixedSpeedsAreAlwaysHonored() {
   XCTAssertEqual(updateInterval(.fastest, passTime: 2, strain: .hot), 0.2)
   XCTAssertEqual(updateInterval(.saver, passTime: 0, strain: .none), 1.5)
