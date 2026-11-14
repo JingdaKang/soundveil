@@ -83,7 +83,7 @@ func record(_ update: CaptionUpdate) {
  committed += update.committed.count
  if !update.committed.isEmpty { show(update.committed.map(\.text)); showing = []; firstSeen = [] }
  if let tentative = update.tentative {
-  if update.committed.isEmpty { show(tentative.map(\.text)) }
+  if update.committed.isEmpty { show(tentative.map(\.text)) } else { showing = tentative.map(\.text) }
   for (i, word) in tentative.enumerated() { firstSeen.append((key(word.text), i, now)) }
  }
  if show_, update.tentative != nil || !update.committed.isEmpty {

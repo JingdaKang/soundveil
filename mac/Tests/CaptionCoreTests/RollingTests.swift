@@ -19,6 +19,28 @@ final class RollingTests: XCTestCase {
   _ = t.complete(partial, words: []); t.ingest(.pause(at: 2.9, voiced: 2.5)); XCTAssertEqual(t.nextJob()!.audioContext, partial.audioContext)
  }
  func testTokenLimitAllowsFastSpeech() { XCTAssertGreaterThan(tokenLimit(forSeconds: 10), 60) }
+ func testWordsPastACutAreFound() {
+  XCTAssertEqual(texts(wordsBeyond(words("see past the smoke."), in: words("see past the smoke. Then we don't"))), "Then we don't")
+  XCTAssertEqual(texts(wordsBeyond(words("I see past the smoke."), in: words("see past the smoke. Then we"))), "Then we")
+  XCTAssertEqual(texts(wordsBeyond(words("see past the smoke."), in: words("see past the smoke."))), "")
+  XCTAssertEqual(texts(wordsBeyond(words("see past the fire."), in: words("see past the smoke. Then we"))), "")
+  XCTAssertEqual(texts(wordsBeyond(words("the smoke."), in: words("the smoke. one two three four the smoke. five"))), "one two three four the smoke. five")
+ }
+ func testWordsPastAForcedCutStayOnScreen() {
+  var t = fast(), time = 0.0
+  func feed(_ seconds: Double) { t.ingest(audio(seconds, at: time)); time += seconds }
+  feed(8.5); let partial = t.nextJob()!; _ = t.complete(partial, words: words("one two three four five six"))
+  feed(0.3); let second = t.nextJob()!; _ = t.complete(second, words: words("one two three four five six"))
+  feed(0.3); let final = t.nextJob()!; XCTAssertTrue(final.isFinal)
+  let update = t.complete(final, words: words("one two three four"))
+  XCTAssertEqual(texts(update.committed), "one two three four"); XCTAssertEqual(texts(update.tentative), "five six"); XCTAssertEqual(update.stable, 0)
+ }
+ func testNothingIsKeptWhenAPhraseEndsAtAPause() {
+  var t = fast(); t.ingest(audio(3)); _ = t.complete(t.nextJob()!, words: words("one two three four"))
+  t.ingest(audio(0.3, at: 3)); _ = t.complete(t.nextJob()!, words: words("one two three four"))
+  t.ingest(.endpoint(voiced: 3)); let update = t.complete(t.nextJob()!, words: words("one two"))
+  XCTAssertEqual(update.tentative?.count, 0)
+ }
  func testLoopsAreCut() {
   XCTAssertEqual(texts(removingLoops(words("what your your your your"))), "what your")
   XCTAssertEqual(texts(removingLoops(words("so you are, you are, you are"))), "so you are,")

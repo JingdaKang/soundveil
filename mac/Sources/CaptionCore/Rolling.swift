@@ -31,6 +31,19 @@ func removingLoops(_ words: [Word]) -> [Word] {
  return words
 }
 func commonPrefix(_ a: [Word], _ b: [Word]) -> Int { zip(a, b).prefix { $0.key == $1.key }.count }
+// A run with no pause is cut wherever it is quietest, so the words on screen can run past the
+// cut. This finds them: the words shown after the place where the final text ends. That place
+// must match on two words and sit near where the final text's length puts it, or nothing is kept.
+func wordsBeyond(_ final: [Word], in shown: [Word]) -> [Word] {
+ guard final.count >= 2, shown.count > 2 else { return [] }
+ let last = final[final.count - 1].key, before = final[final.count - 2].key
+ var best: Int?
+ for i in 1..<shown.count where shown[i].key == last && shown[i-1].key == before && abs(i - (final.count - 1)) <= 3 {
+  if best == nil || abs(i - (final.count - 1)) < abs(best! - (final.count - 1)) { best = i }
+ }
+ guard let best else { return [] }
+ return Array(shown[(best + 1)...])
+}
 // Finds the quietest 100 ms of a recording, the safest place to cut a run with no pause.
 func quietestPoint(in samples: [Float]) -> Int {
  var best = 0, lowest = Float.infinity
@@ -164,8 +177,11 @@ public struct RollingTranscriber {
   var update = CaptionUpdate()
   let pass = removingLoops(words)
   if job.isFinal {
-   closing.removeFirst(); previous = []; shown = []; emptyPasses = 0
-   update.committed = pass; update.tentative = []
+   // Words already shown for audio after the cut stay up until the next pass covers them.
+   // Clearing them made the end of every long run blink out and come back.
+   let rest = closing.count == 1 && length >= firstDecode / 2 ? wordsBeyond(pass, in: shown) : []
+   closing.removeFirst(); previous = []; shown = rest; emptyPasses = 0
+   update.committed = pass; update.tentative = rest
    update.sentences = assembler.add(pass)
   } else if closing.isEmpty, !buffer.isEmpty {
    // Whisper's guess at a cut-off phrase can swing wildly from one pass to the next, so what
