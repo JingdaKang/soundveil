@@ -69,6 +69,10 @@ public struct CaptionStyle: Codable, Equatable, Sendable {
  static let readableContrast = 4.5 // WCAG AA, also the usual advice for captions.
  public var isSeeThrough: Bool { backgroundOpacity < Self.seeThrough }
  public var edge: CaptionColor { CaptionColor(hex: text.luminance > 0.4 ? 0x000000 : 0xFFFFFF) }
+ // Highlighted words are filled from this at the top down to the highlight color, which gives
+ // them some depth. It leans away from the surroundings, so it never costs contrast.
+ public var isLightOnDark: Bool { text.luminance > 0.4 }
+ public var highlightTop: CaptionColor { highlight.blended(over: CaptionColor(hex: isLightOnDark ? 0xFFFFFF : 0x000000), opacity: 0.6) }
  // A see-through overlay is judged by its shadow and the video, which can't be known here.
  public var isHardToRead: Bool {
   guard !isSeeThrough else { return false }

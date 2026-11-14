@@ -162,26 +162,30 @@ extension CaptionTypeface {
   return base.fontDescriptor.withDesign(design.1).flatMap { NSFont(descriptor: $0, size: size) } ?? base
  }
 }
-// One word as drawn, shared by the overlay and the preview in Settings.
+// One word as drawn, shared by the overlay and the preview in Settings. A highlighted word is
+// filled top to bottom and, on a dark surround, glows a little, so it reads as an accent
+// rather than as text that happens to be another color.
 struct CaptionWord: View {
  let text: String
  let kind: WordStyle
  let fontSize: Double
  let style: CaptionStyle
+ private var accent: LinearGradient { LinearGradient(colors: [style.highlightTop.color, style.highlight.color], startPoint: .top, endPoint: .bottom) }
  var body: some View {
   switch kind {
   case .plain:
    Text(text).font(style.typeface.font(size: fontSize)).foregroundStyle(style.text.color)
   case .sound, .slang:
    PopIn {
-    Text(text).font(style.typeface.font(size: fontSize * kind.scale, strong: true)).foregroundStyle(style.highlight.color)
+    Text(text).font(style.typeface.font(size: fontSize * kind.scale, strong: true)).foregroundStyle(accent)
+     .shadow(color: style.highlight.color.opacity(style.isLightOnDark ? 0.38 : 0), radius: fontSize * 0.2)
    }
   case .cue:
    PopIn {
-    Text(text).font(style.typeface.font(size: fontSize * kind.scale)).foregroundStyle(style.highlight.color)
+    Text(text).font(style.typeface.font(size: fontSize * kind.scale)).foregroundStyle(accent)
      .padding(.horizontal, 10).frame(height: fontSize * 1.04)
-     .background(style.highlight.color.opacity(0.14), in: Capsule())
-     .overlay(Capsule().strokeBorder(style.highlight.color.opacity(0.45)))
+     .background(LinearGradient(colors: [style.highlight.color.opacity(0.2), style.highlight.color.opacity(0.1)], startPoint: .top, endPoint: .bottom), in: Capsule())
+     .overlay(Capsule().strokeBorder(style.highlight.color.opacity(0.4), lineWidth: 1))
    }
   }
  }

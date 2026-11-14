@@ -33,6 +33,13 @@ final class CaptionStyleTests: XCTestCase {
   XCTAssertEqual(CaptionStyle(data: style.encoded())?.typeface, .serif)
   XCTAssertEqual(style.with(typeface: .rounded), CaptionPreset.all[2].style)
  }
+ // The top of a highlighted word must be at least as clear of the surroundings as its base.
+ func testAHighlightsTopNeverCostsContrast() {
+  for preset in CaptionPreset.all where !preset.style.isSeeThrough {
+   let style = preset.style
+   XCTAssertGreaterThanOrEqual(style.highlightTop.contrast(with: style.background), style.highlight.contrast(with: style.background), preset.name)
+  }
+ }
  func testPresetsAreReadable() {
   for preset in CaptionPreset.all {
    XCTAssertFalse(preset.style.isHardToRead, preset.name)
