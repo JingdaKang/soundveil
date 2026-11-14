@@ -212,13 +212,22 @@ struct CaptionLines: View {
  private var font: Font { feed.style.typeface.font(size: feed.fontSize) }
  private var newest: Int { feed.items.last?.line ?? 0 }
  private var top: Int { newest - rows + 1 }
+ // The line being spoken is the brightest thing on the panel, and lines already read step
+ // back. Highlights and cues barely dim: a faded accent color turns muddy. Expanded is for
+ // reading back, so nothing is dimmed there.
+ private func emphasis(_ item: CaptionFeed.Item) -> Double {
+  let accent = item.style != .plain
+  let settled = item.confirmed ? 1 : accent ? 0.8 : 0.62
+  let read = item.line < newest && !feed.expanded
+  return settled * (read ? (accent ? 0.94 : 0.78) : 1)
+ }
  // Larger words sit up by their extra height so every word shares a baseline.
  private func lift(_ item: CaptionFeed.Item) -> Double {
   switch item.style { case .plain: return 0; case .cue: return feed.fontSize * 0.1; default: return -feed.fontSize * 0.1 }
  }
  private func word(_ item: CaptionFeed.Item) -> some View {
   CaptionWord(text: item.text, kind: item.style, fontSize: feed.fontSize, style: feed.style)
-   .opacity(item.confirmed ? 1 : 0.62).fixedSize()
+   .opacity(emphasis(item)).fixedSize()
    .offset(x: item.x, y: Double(item.line - top) * feed.lineHeight + lift(item)).transition(.opacity)
  }
  var body: some View {
