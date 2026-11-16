@@ -1,7 +1,8 @@
-//! How captions look: their colors and opacity, the ready-made presets, and whether a choice stays
-//! readable. Saved styles use the same JSON as the Mac app's.
+//! How captions look: their colors, opacity, and typeface, the ready-made presets, and whether a
+//! choice stays readable. Saved styles use the same JSON as the Mac app's.
 
-use serde::{Deserialize, Serialize};
+use serde::de::IgnoredAny;
+use serde::{Deserialize, Deserializer, Serialize};
 
 /// An sRGB color packed as `0xRRGGBB`, so saved styles compare exactly.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -71,6 +72,46 @@ impl CaptionColor {
     }
 }
 
+/// The letterforms captions are set in. Rounded is the default: its softer shapes read as speech
+/// rather than as interface text. Classic is the system face captions used at first.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CaptionTypeface {
+    #[default]
+    Rounded,
+    Classic,
+    Serif,
+    Typewriter,
+}
+
+impl CaptionTypeface {
+    pub const ALL: [Self; 4] = [Self::Rounded, Self::Classic, Self::Serif, Self::Typewriter];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Rounded => "Rounded",
+            Self::Classic => "Classic",
+            Self::Serif => "Serif",
+            Self::Typewriter => "Typewriter",
+        }
+    }
+
+    /// A typeface this version doesn't know, or a value that isn't one, reads as the default, so
+    /// a style saved by a newer version still opens.
+    fn saved<'de, D: Deserializer<'de>>(saved: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Saved {
+            Known(CaptionTypeface),
+            Other(IgnoredAny),
+        }
+        Ok(match Saved::deserialize(saved)? {
+            Saved::Known(typeface) => typeface,
+            Saved::Other(_) => Self::default(),
+        })
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct CaptionStyle {
@@ -80,6 +121,9 @@ pub struct CaptionStyle {
     pub highlight: CaptionColor,
     pub background_opacity: f64,
     pub text_opacity: f64,
+    /// Styles saved before typefaces existed have none, and take the default.
+    #[serde(deserialize_with = "CaptionTypeface::saved")]
+    pub typeface: CaptionTypeface,
 }
 
 impl CaptionStyle {
@@ -90,6 +134,7 @@ impl CaptionStyle {
         highlight: CaptionColor::new(0xFFD14D),
         background_opacity: 0.78,
         text_opacity: 1.0,
+        typeface: CaptionTypeface::Rounded,
     };
 
     pub const LOWEST_TEXT_OPACITY: f64 = 0.4;
@@ -103,6 +148,11 @@ impl CaptionStyle {
 
     pub fn is_see_through(&self) -> bool {
         self.background_opacity < Self::SEE_THROUGH
+    }
+
+    /// A preset sets colors and leaves the typeface alone, so the two can be compared apart.
+    pub fn with_typeface(self, typeface: CaptionTypeface) -> Self {
+        Self { typeface, ..self }
     }
 
     /// The color of the shadow, chosen to stand apart from the text.
@@ -134,6 +184,7 @@ impl CaptionStyle {
             highlight: CaptionColor::new(self.highlight.hex),
             background_opacity: self.background_opacity.clamp(0.0, 1.0),
             text_opacity: self.text_opacity.clamp(Self::LOWEST_TEXT_OPACITY, 1.0),
+            typeface: self.typeface,
         }
     }
 }
@@ -180,6 +231,7 @@ impl CaptionPreset {
                 highlight: CaptionColor::new(highlight),
                 background_opacity: 1.0,
                 text_opacity: 1.0,
+                typeface: CaptionTypeface::Rounded,
             },
         }
     }
@@ -257,7 +309,56 @@ mod tests {
         assert_eq!(style.highlight, CaptionColor::new(0xFFD14D));
         assert_eq!(style.background_opacity, 0.78);
         assert_eq!(style.text_opacity, 1.0);
+        assert_eq!(style.typeface, CaptionTypeface::Rounded);
         assert!(!style.is_see_through());
+    }
+
+    #[test]
+    fn styles_saved_before_typefaces_take_the_default() {
+        let old = r#"{"text":{"hex":16777215},"background":{"hex":0},"highlight":{"hex":16765261},"backgroundOpacity":0.5,"textOpacity":1}"#;
+        let style: CaptionStyle = serde_json::from_str(old).unwrap();
+        assert_eq!(style.typeface, CaptionTypeface::Rounded);
+        assert_eq!(style.background_opacity, 0.5);
+    }
+
+    #[test]
+    fn a_typeface_survives_saving_and_leaves_colors_alone() {
+        let style = CaptionPreset::ALL[2]
+            .style
+            .with_typeface(CaptionTypeface::Serif);
+        let data = serde_json::to_vec(&style).unwrap();
+        let read: CaptionStyle = serde_json::from_slice(&data).unwrap();
+        assert_eq!(read.typeface, CaptionTypeface::Serif);
+        assert_eq!(
+            style.with_typeface(CaptionTypeface::Rounded),
+            CaptionPreset::ALL[2].style
+        );
+    }
+
+    #[test]
+    fn typefaces_are_saved_under_the_mac_apps_names() {
+        let names = CaptionTypeface::ALL.map(|typeface| serde_json::to_string(&typeface).unwrap());
+        assert_eq!(
+            names,
+            [
+                r#""rounded""#,
+                r#""classic""#,
+                r#""serif""#,
+                r#""typewriter""#
+            ]
+        );
+        let style = serde_json::to_string(&CaptionStyle::STANDARD).unwrap();
+        assert!(style.contains(r#""typeface":"rounded""#), "{style}");
+    }
+
+    #[test]
+    fn an_unknown_typeface_takes_the_default() {
+        for saved in [r#""blackletter""#, "7", "null", r#"{"name":"serif"}"#] {
+            let text = format!(r#"{{"typeface":{saved},"backgroundOpacity":0.5}}"#);
+            let style: CaptionStyle = serde_json::from_str(&text).unwrap();
+            assert_eq!(style.typeface, CaptionTypeface::Rounded, "{saved}");
+            assert_eq!(style.background_opacity, 0.5, "{saved}");
+        }
     }
 
     #[test]

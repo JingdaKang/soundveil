@@ -14,7 +14,7 @@ pub mod rolling;
 pub mod shortcuts;
 pub mod tokens;
 
-pub use caption_style::{CaptionColor, CaptionPreset, CaptionStyle};
+pub use caption_style::{CaptionColor, CaptionPreset, CaptionStyle, CaptionTypeface};
 pub use expressive::{WordStyle, cue_label, word_styles};
 pub use model::Model;
 pub use pipeline::{Caption, SpeechEvent, SpeechGate, Word};
