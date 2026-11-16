@@ -155,13 +155,28 @@ impl CaptionStyle {
         Self { typeface, ..self }
     }
 
+    pub fn is_light_on_dark(&self) -> bool {
+        self.text.luminance() > 0.4
+    }
+
     /// The color of the shadow, chosen to stand apart from the text.
     pub fn edge(&self) -> CaptionColor {
-        CaptionColor::new(if self.text.luminance() > 0.4 {
+        CaptionColor::new(if self.is_light_on_dark() {
             0x000000
         } else {
             0xFFFFFF
         })
+    }
+
+    /// Highlighted words are filled from this at the top down to the highlight color, which gives
+    /// them some depth. It leans away from the surroundings, so it never costs contrast.
+    pub fn highlight_top(&self) -> CaptionColor {
+        let toward = CaptionColor::new(if self.is_light_on_dark() {
+            0xFFFFFF
+        } else {
+            0x000000
+        });
+        self.highlight.blended_over(toward, 0.6)
     }
 
     /// A see-through overlay is judged by its shadow and the video, which can't be known here.
@@ -359,6 +374,34 @@ mod tests {
             assert_eq!(style.typeface, CaptionTypeface::Rounded, "{saved}");
             assert_eq!(style.background_opacity, 0.5, "{saved}");
         }
+    }
+
+    /// The top of a highlighted word must be at least as clear of the surroundings as its base.
+    #[test]
+    fn a_highlights_top_never_costs_contrast() {
+        for preset in CaptionPreset::ALL {
+            let style = preset.style;
+            if style.is_see_through() {
+                continue;
+            }
+            assert!(
+                style.highlight_top().contrast(style.background)
+                    >= style.highlight.contrast(style.background),
+                "{}",
+                preset.name
+            );
+        }
+    }
+
+    #[test]
+    fn a_highlights_top_leans_away_from_the_surroundings() {
+        assert_eq!(
+            CaptionStyle::STANDARD.highlight_top(),
+            CaptionColor::new(0xFFE394)
+        );
+        let dark = CaptionPreset::ALL[3].style;
+        assert!(!dark.is_light_on_dark());
+        assert!(dark.highlight_top().luminance() < dark.highlight.luminance());
     }
 
     #[test]
