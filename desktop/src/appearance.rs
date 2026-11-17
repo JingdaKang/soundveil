@@ -9,8 +9,9 @@ use slint::{Color, ComponentHandle, ModelRc, VecModel};
 use soundveil_core::{CaptionColor, CaptionPreset, CaptionStyle};
 
 /// The colors the presets use, plus a gray and a red to round them out.
-const SWATCHES: [u32; 9] = [
-    0xFFFFFF, 0x000000, 0x8A8A8A, 0xFFE600, 0xFFD14D, 0xE5484D, 0x5CE1E6, 0x0B57D0, 0x0A2A8C,
+const SWATCHES: [u32; 11] = [
+    0xFFFFFF, 0xF5F2EA, 0x000000, 0x8A8A8A, 0xFFE600, 0xFFD14D, 0xFFC233, 0xE5484D, 0x5CE1E6,
+    0x0B57D0, 0x0A2A8C,
 ];
 
 fn color(color: CaptionColor) -> Color {
