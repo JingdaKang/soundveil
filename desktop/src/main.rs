@@ -343,6 +343,7 @@ fn toggle_expanded(ui: &MainWindow) {
         let line = (ui.get_caption_size() * 1.3).round();
         view.overlay.toggle_expanded(line);
         view.captions.set_expanded(view.overlay.is_expanded());
+        ui.set_reading_back(view.overlay.is_expanded());
     });
 }
 
@@ -607,6 +608,7 @@ fn run_action(ui: &MainWindow, action: ShortcutAction) {
             show_overlay(ui);
             with_view(|view| view.overlay.reset());
             with_view(|view| view.captions.set_expanded(false));
+            ui.set_reading_back(false);
             save(ui);
         }
     }

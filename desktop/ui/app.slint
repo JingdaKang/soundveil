@@ -118,6 +118,7 @@ component Stage inherits Rectangle {
     in property <string> placeholder;
     in property <float> size;
     in property <float> level;
+    in property <bool> reading-back;
     height: 136px;
     border-radius: Theme.radius;
     background: Theme.stage;
@@ -136,6 +137,7 @@ component Stage inherits Rectangle {
         words: root.words;
         placeholder: root.placeholder;
         size: root.size;
+        dims-read: !root.reading-back;
     }
 
     Rectangle {
@@ -166,6 +168,7 @@ component CaptionsPage inherits VerticalLayout {
     in property <[HistoryLine]> history;
     in property <int> history-count;
     in property <bool> overlay-shown;
+    in property <bool> reading-back;
     callback toggle-captions();
     callback toggle-overlay();
     callback model-chosen(int);
@@ -181,6 +184,7 @@ component CaptionsPage inherits VerticalLayout {
         placeholder: root.placeholder;
         size: root.caption-size;
         level: root.level;
+        reading-back: root.reading-back;
     }
 
     HorizontalLayout {
@@ -998,6 +1002,8 @@ export component MainWindow inherits Window {
     in-out property <bool> highlight: true;
     in-out property <bool> click-through;
     in property <bool> overlay-shown;
+    // The overlay is expanded for reading back, so lines already read are not dimmed.
+    in property <bool> reading-back;
     in property <bool> shortcuts-editable: true;
     in property <string> shortcut-note;
     in-out property <int> recording: -1;
@@ -1069,6 +1075,7 @@ export component MainWindow inherits Window {
             words: root.words;
             placeholder: root.placeholder;
             level: root.level;
+            reading-back: root.reading-back;
             status: root.status;
             listening: root.listening;
             busy: root.busy;

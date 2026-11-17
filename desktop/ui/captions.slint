@@ -146,6 +146,8 @@ component WordCell {
     in property <CaptionWord> word;
     in property <float> size;
     in property <length> full-width;
+    // On a line above the newest, so it has been read.
+    in property <bool> read;
     property <length> line: round(root.size * 1.3) * 1px;
     property <bool> landed: false;
     property <bool> cue: root.word.kind == 2;
@@ -153,13 +155,16 @@ component WordCell {
     // Highlighted words are a little larger, and a cue is a small pill.
     property <length> text-size: (root.cue ? root.size * 0.66 : root.accent ? root.size * 1.08 : root.size) * 1px;
     property <int> weight: root.accent ? CaptionLook.style.strong-weight : CaptionLook.style.weight;
+    // Highlights and cues barely dim, whether tentative or read: a faded accent color turns muddy.
+    property <float> settled: root.word.settled ? 1 : root.word.kind == 0 ? 0.62 : 0.8;
+    property <float> stepped-back: !root.read ? 1 : root.word.kind == 0 ? 0.78 : 0.94;
 
     init => {
         self.landed = true;
     }
     width: root.word.kind == 3 ? root.full-width : label.preferred-width + (root.cue ? 20px : 0px);
     height: root.word.kind == 3 ? 0px : root.line;
-    opacity: !root.landed ? 0 : root.word.settled ? 1 : 0.62;
+    opacity: !root.landed ? 0 : root.settled * root.stepped-back;
     animate opacity { duration: 160ms; easing: ease-out; }
 
     if root.cue: Rectangle {
@@ -230,6 +235,9 @@ export component CaptionWords {
     in property <[CaptionWord]> words;
     in property <string> placeholder;
     in property <float> size: 28;
+    // The line being spoken is the brightest thing on the panel, and lines already read step
+    // back. Reading back is the exception, so nothing dims while the overlay is expanded.
+    in property <bool> dims-read: true;
     property <length> line: round(root.size * 1.3) * 1px;
     // Only whole lines, so the oldest is never cut through the middle.
     property <int> rows: max(1, floor(root.height / root.line));
@@ -265,7 +273,7 @@ export component CaptionWords {
         width: root.width;
         height: root.rows * root.line;
         clip: true;
-        FlexboxLayout {
+        flow := FlexboxLayout {
             x: 0;
             y: 0;
             width: parent.width;
@@ -276,10 +284,13 @@ export component CaptionWords {
             cross-axis-alignment: end;
             spacing-horizontal: round(root.size * 0.26) * 1px;
             spacing-vertical: 0px;
+            // Lines are packed against the bottom, so the newest is the last line's height up
+            // from it, and a word that ends above there is on a line already read.
             for word in root.words: WordCell {
                 word: word;
                 size: root.size;
                 full-width: root.width;
+                read: root.dims-read && self.y + self.height < flow.height - root.line / 2;
             }
         }
     }
