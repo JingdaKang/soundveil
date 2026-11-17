@@ -1,12 +1,13 @@
 //! Hands a caption style to the interface. Each window holds its own copy of the look, so both have
 //! to be told.
 
+use crate::fonts::{self, Faces};
 use crate::{
     Appearance, CaptionAppearance, CaptionLook, CaptionOverlay, ColorSwatch, MainWindow,
-    StylePreset,
+    StylePreset, TypefaceChoice,
 };
 use slint::{Color, ComponentHandle, ModelRc, VecModel};
-use soundveil_core::{CaptionColor, CaptionPreset, CaptionStyle};
+use soundveil_core::{CaptionColor, CaptionPreset, CaptionStyle, CaptionTypeface};
 
 /// The colors the presets use, plus a gray and a red to round them out.
 const SWATCHES: [u32; 10] = [
@@ -19,7 +20,8 @@ fn color(color: CaptionColor) -> Color {
     Color::from_rgb_u8(red, green, blue)
 }
 
-fn look(style: &CaptionStyle) -> CaptionAppearance {
+fn look(style: &CaptionStyle, faces: &Faces) -> CaptionAppearance {
+    let face = faces.face(style.typeface);
     CaptionAppearance {
         text: color(style.text),
         background: color(style.background),
@@ -28,6 +30,9 @@ fn look(style: &CaptionStyle) -> CaptionAppearance {
         text_opacity: style.text_opacity as f32,
         shadowed: style.is_see_through(),
         edge: color(style.edge()),
+        family: face.family.into(),
+        weight: face.weight,
+        strong_weight: face.strong,
     }
 }
 
@@ -37,19 +42,42 @@ fn hundredths(value: f32) -> f64 {
     (f64::from(value) * 100.0).round() / 100.0
 }
 
+/// A preset sets colors and leaves the typeface alone, so a style matches one whatever its typeface.
 fn preset_index(style: &CaptionStyle) -> i32 {
     CaptionPreset::ALL
         .iter()
-        .position(|preset| preset.style == *style)
+        .position(|preset| preset.style.with_typeface(style.typeface) == *style)
         .map_or(-1, |index| index as i32)
 }
 
+/// Takes a preset's colors and keeps the typeface.
+pub fn choose_preset(style: &mut CaptionStyle, index: i32) {
+    if let Some(preset) = CaptionPreset::ALL.get(index as usize) {
+        *style = preset.style.with_typeface(style.typeface);
+    }
+}
+
+pub fn choose_typeface(style: &mut CaptionStyle, index: i32) {
+    if let Some(typeface) = CaptionTypeface::ALL.get(index as usize) {
+        style.typeface = *typeface;
+    }
+}
+
 /// Fills in what never changes.
-pub fn prepare(ui: &MainWindow) {
+pub fn prepare(ui: &MainWindow, faces: &Faces) {
     let settings = ui.global::<Appearance>();
     let presets = CaptionPreset::ALL.map(|preset| StylePreset {
         name: preset.name.into(),
-        look: look(&preset.style),
+        look: look(&preset.style, faces),
+    });
+    // Each choice is drawn in its own face, so the row shows what it offers.
+    let typefaces = CaptionTypeface::ALL.map(|typeface| {
+        let face = faces.face(typeface);
+        TypefaceChoice {
+            name: typeface.name().into(),
+            family: face.family.into(),
+            weight: face.weight,
+        }
     });
     let swatches = SWATCHES.map(|hex| {
         let swatch = CaptionColor::new(hex);
@@ -59,24 +87,26 @@ pub fn prepare(ui: &MainWindow) {
         }
     });
     settings.set_presets(ModelRc::new(VecModel::from(presets.to_vec())));
+    settings.set_typefaces(ModelRc::new(VecModel::from(typefaces.to_vec())));
     settings.set_swatches(ModelRc::new(VecModel::from(swatches.to_vec())));
     settings.set_lowest_text_opacity(CaptionStyle::LOWEST_TEXT_OPACITY as f32);
 }
 
 /// Draws a style everywhere. The color fields are left alone, because rewriting one would move
 /// what someone is typing out from under them.
-pub fn draw(ui: &MainWindow, overlay: &CaptionOverlay, style: &CaptionStyle) {
-    let look = look(style);
+pub fn draw(ui: &MainWindow, overlay: &CaptionOverlay, style: &CaptionStyle, faces: &Faces) {
+    let look = look(style, faces);
     ui.global::<CaptionLook>().set_style(look.clone());
     overlay.global::<CaptionLook>().set_style(look);
     let settings = ui.global::<Appearance>();
     settings.set_preset(preset_index(style));
+    settings.set_typeface(fonts::index(style.typeface) as i32);
     settings.set_hard_to_read(style.is_hard_to_read());
 }
 
 /// Draws a style and puts the fields in step with it.
-pub fn show(ui: &MainWindow, overlay: &CaptionOverlay, style: &CaptionStyle) {
-    draw(ui, overlay, style);
+pub fn show(ui: &MainWindow, overlay: &CaptionOverlay, style: &CaptionStyle, faces: &Faces) {
+    draw(ui, overlay, style, faces);
     let settings = ui.global::<Appearance>();
     settings.set_text_hex(style.text.label().into());
     settings.set_background_hex(style.background.label().into());
@@ -128,6 +158,43 @@ mod tests {
         for (index, preset) in CaptionPreset::ALL.iter().enumerate() {
             assert_eq!(preset_index(&preset.style), index as i32);
         }
+    }
+
+    #[test]
+    fn a_preset_is_found_in_any_typeface() {
+        for (index, preset) in CaptionPreset::ALL.iter().enumerate() {
+            for typeface in CaptionTypeface::ALL {
+                let style = preset.style.with_typeface(typeface);
+                assert_eq!(preset_index(&style), index as i32, "{typeface:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_preset_changes_colors_and_keeps_the_typeface() {
+        let mut style = CaptionStyle::STANDARD.with_typeface(CaptionTypeface::Serif);
+        choose_preset(&mut style, 3);
+        assert_eq!(
+            style,
+            CaptionPreset::ALL[3]
+                .style
+                .with_typeface(CaptionTypeface::Serif)
+        );
+        choose_preset(&mut style, 99);
+        assert_eq!(style.typeface, CaptionTypeface::Serif);
+    }
+
+    #[test]
+    fn a_typeface_changes_nothing_else() {
+        let mut style = CaptionPreset::ALL[4].style;
+        choose_typeface(&mut style, 3);
+        assert_eq!(style.typeface, CaptionTypeface::Typewriter);
+        assert_eq!(
+            style.with_typeface(CaptionTypeface::Rounded),
+            CaptionPreset::ALL[4].style
+        );
+        choose_typeface(&mut style, -1);
+        assert_eq!(style.typeface, CaptionTypeface::Typewriter);
     }
 
     #[test]

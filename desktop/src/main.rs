@@ -11,6 +11,7 @@ mod download;
 mod engine;
 mod export;
 mod feed;
+mod fonts;
 mod hotkeys;
 mod overlay;
 mod paths;
@@ -22,13 +23,14 @@ mod settings;
 use capture::{Capture, Sink};
 use captions::Captions;
 use engine::{Engine, Reports};
+use fonts::Faces;
 use hotkeys::Hotkeys;
 use overlay::Overlay;
 use settings::Settings;
 use slint::{ComponentHandle, Model as _, ModelRc, SharedString, VecModel, Weak};
 use soundveil_core::{
-    CaptionPreset, CaptionStyle, CaptionUpdate, Held, Keyboard, Model, ResizeEdges, ResizeZones,
-    ShortcutAction, ShortcutMap, UpdateSpeed,
+    CaptionStyle, CaptionUpdate, Held, Keyboard, Model, ResizeEdges, ResizeZones, ShortcutAction,
+    ShortcutMap, UpdateSpeed,
 };
 use std::path::PathBuf;
 use std::cell::{Cell, OnceCell, RefCell};
@@ -71,6 +73,8 @@ struct View {
     captions: Rc<Captions>,
     overlay: Rc<Overlay>,
     style: Cell<CaptionStyle>,
+    /// The installed font for each typeface, found once when the app opens.
+    faces: Faces,
     shortcuts: RefCell<ShortcutMap>,
     /// `None` where the desktop owns the keys, as it does on Wayland.
     hotkeys: Option<RefCell<Hotkeys>>,
@@ -140,7 +144,7 @@ fn change_style(ui: &MainWindow, change: impl FnOnce(&mut CaptionStyle)) {
         let mut style = view.style.get();
         change(&mut style);
         view.style.set(style);
-        appearance::show(ui, &view.overlay.window, &style);
+        appearance::show(ui, &view.overlay.window, &style, &view.faces);
     });
 }
 
@@ -427,6 +431,7 @@ fn run_app(replay: Option<PathBuf>) -> Result<(), slint::PlatformError> {
         captions: Captions::new(!settings.highlight_words),
         overlay: Overlay::new(settings.overlay, settings.click_through)?,
         style: Cell::new(settings.caption_style),
+        faces: Faces::installed(),
         shortcuts: RefCell::new(shortcuts),
         hotkeys: (!on_wayland).then(|| RefCell::new(Hotkeys::new(firing(ui.as_weak())))),
         clashes: RefCell::new(Vec::new()),
@@ -434,8 +439,13 @@ fn run_app(replay: Option<PathBuf>) -> Result<(), slint::PlatformError> {
     ui.set_words(view.captions.model());
     view.overlay.window.set_words(view.captions.model());
     view.overlay.window.set_size_points(settings.caption_size);
-    appearance::prepare(&ui);
-    appearance::show(&ui, &view.overlay.window, &settings.caption_style);
+    appearance::prepare(&ui, &view.faces);
+    appearance::show(
+        &ui,
+        &view.overlay.window,
+        &settings.caption_style,
+        &view.faces,
+    );
     VIEW.with(|cell| cell.set(view).map_err(|_| ()).expect("one view"));
     connect_shortcuts(&ui, on_wayland);
     let saved_model = Model::saved(Some(&settings.model));
@@ -820,9 +830,16 @@ fn connect_appearance(ui: &MainWindow) {
         let weak = ui.as_weak();
         move |index| {
             if let Some(ui) = weak.upgrade() {
-                change_style(&ui, |style| {
-                    *style = CaptionPreset::ALL[index as usize].style
-                });
+                change_style(&ui, |style| appearance::choose_preset(style, index));
+                save(&ui);
+            }
+        }
+    });
+    settings.on_typeface_chosen({
+        let weak = ui.as_weak();
+        move |index| {
+            if let Some(ui) = weak.upgrade() {
+                change_style(&ui, |style| appearance::choose_typeface(style, index));
                 save(&ui);
             }
         }
@@ -848,7 +865,7 @@ fn connect_appearance(ui: &MainWindow) {
                 let mut style = view.style.get();
                 if appearance::choose_color(&mut style, which, &text) {
                     view.style.set(style);
-                    appearance::draw(&ui, &view.overlay.window, &style);
+                    appearance::draw(&ui, &view.overlay.window, &style, &view.faces);
                     save(&ui);
                 }
             });
@@ -980,6 +997,8 @@ mod snapshot {
         let Ok(path) = std::env::var("SOUNDVEIL_SNAPSHOT") else {
             return;
         };
+        // Which fonts this machine gave each typeface, to read beside the pictures.
+        with_view(|view| eprintln!("{:?}", view.faces));
         let times = std::env::var("SOUNDVEIL_SNAPSHOT_AT").unwrap_or("1".into());
         let times: Vec<f64> = times.split(',').filter_map(|t| t.parse().ok()).collect();
         let last = times.iter().copied().fold(0.0, f64::max);

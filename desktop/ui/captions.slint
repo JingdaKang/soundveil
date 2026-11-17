@@ -15,6 +15,11 @@ export struct CaptionAppearance {
     text-opacity: float,
     shadowed: bool,
     edge: color,
+    // The typeface. An empty family is the interface's own font.
+    family: string,
+    weight: int,
+    // For sound words and slang.
+    strong-weight: int,
 }
 
 export global CaptionLook {
@@ -26,6 +31,9 @@ export global CaptionLook {
         text-opacity: 1,
         shadowed: false,
         edge: #000000,
+        family: "",
+        weight: 600,
+        strong-weight: 700,
     };
 }
 
@@ -37,6 +45,7 @@ export component TextShadow {
     in property <color> edge;
     in property <length> font-size;
     in property <int> font-weight;
+    in property <string> font-family;
     in property <TextVerticalAlignment> vertical-alignment: top;
     in property <TextHorizontalAlignment> horizontal-alignment: left;
     in property <TextOverflow> overflow: clip;
@@ -57,6 +66,7 @@ export component TextShadow {
         color: root.edge.with-alpha(copy.alpha);
         font-size: root.font-size;
         font-weight: root.font-weight;
+        font-family: root.font-family;
         vertical-alignment: root.vertical-alignment;
         horizontal-alignment: root.horizontal-alignment;
         overflow: root.overflow;
@@ -64,6 +74,7 @@ export component TextShadow {
     }
 }
 
+// One word as drawn, shared by the overlay and the preview in Settings.
 component WordCell {
     in property <CaptionWord> word;
     in property <float> size;
@@ -72,9 +83,9 @@ component WordCell {
     property <bool> landed: false;
     property <bool> cue: root.word.kind == 2;
     property <bool> accent: root.word.kind == 1;
-    property <color> ink: root.cue || root.accent ? CaptionLook.style.highlight : CaptionLook.style.text;
-    property <length> text-size: (root.cue ? root.size * 0.68 : root.accent ? root.size * 1.1 : root.size) * 1px;
-    property <int> weight: root.accent ? 700 : 600;
+    // Highlighted words are a little larger, and a cue is a small pill.
+    property <length> text-size: (root.cue ? root.size * 0.66 : root.accent ? root.size * 1.08 : root.size) * 1px;
+    property <int> weight: root.accent ? CaptionLook.style.strong-weight : CaptionLook.style.weight;
 
     init => {
         self.landed = true;
@@ -86,11 +97,11 @@ component WordCell {
 
     if root.cue: Rectangle {
         y: (root.line - self.height) / 2 + root.size * 0.06px;
-        height: root.size * 1.02px;
+        height: root.size * 1.04px;
         border-radius: self.height / 2;
-        background: root.ink.with-alpha(0.14);
+        background: CaptionLook.style.highlight.with-alpha(0.14);
         border-width: 1px;
-        border-color: root.ink.with-alpha(0.45);
+        border-color: CaptionLook.style.highlight.with-alpha(0.45);
     }
     if CaptionLook.style.shadowed: TextShadow {
         x: label.x;
@@ -101,14 +112,16 @@ component WordCell {
         edge: CaptionLook.style.edge;
         font-size: root.text-size;
         font-weight: root.weight;
+        font-family: CaptionLook.style.family;
     }
     label := Text {
         x: root.cue ? 10px : 0px;
         y: root.cue ? (root.line - self.preferred-height) / 2 + root.size * 0.06px : root.line - self.preferred-height;
         text: root.word.text;
-        color: root.ink;
+        color: root.cue || root.accent ? CaptionLook.style.highlight : CaptionLook.style.text;
         font-size: root.text-size;
         font-weight: root.weight;
+        font-family: CaptionLook.style.family;
         wrap: no-wrap;
     }
 }
@@ -153,7 +166,8 @@ export component CaptionWords {
         text: root.placeholder;
         edge: CaptionLook.style.edge;
         font-size: min(root.size, 24) * 1px;
-        font-weight: 600;
+        font-weight: CaptionLook.style.weight;
+        font-family: CaptionLook.style.family;
         vertical-alignment: center;
         overflow: elide;
     }
@@ -163,7 +177,8 @@ export component CaptionWords {
         text: root.placeholder;
         color: CaptionLook.style.text.with-alpha(0.6);
         font-size: min(root.size, 24) * 1px;
-        font-weight: 600;
+        font-weight: CaptionLook.style.weight;
+        font-family: CaptionLook.style.family;
         vertical-alignment: center;
         overflow: elide;
     }

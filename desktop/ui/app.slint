@@ -26,12 +26,21 @@ export struct ColorSwatch {
     hex: string,
 }
 
+// A typeface as Settings offers it, with the installed font that draws it.
+export struct TypefaceChoice {
+    name: string,
+    family: string,
+    weight: int,
+}
+
 // The Appearance card's values. Which colors to use and whether they read well is decided in Rust.
 export global Appearance {
     in property <[StylePreset]> presets;
     in property <[ColorSwatch]> swatches;
     // The preset that matches the current style, or -1.
     in property <int> preset: -1;
+    in property <[TypefaceChoice]> typefaces;
+    in property <int> typeface;
     in-out property <string> text-hex;
     in-out property <string> background-hex;
     in-out property <string> highlight-hex;
@@ -40,6 +49,7 @@ export global Appearance {
     in property <float> lowest-text-opacity;
     in property <bool> hard-to-read;
     callback preset-chosen(int);
+    callback typeface-chosen(int);
     // Colors are numbered 0 text, 1 background, 2 highlight.
     callback color-chosen(int, string);
     // The hex may be half typed, and the field is left as it is either way.
@@ -450,7 +460,8 @@ component StyleTile {
                     text: "Aa";
                     edge: root.preset.look.edge;
                     font-size: 17px;
-                    font-weight: 600;
+                    font-weight: CaptionLook.style.weight;
+                    font-family: CaptionLook.style.family;
                     vertical-alignment: center;
                     horizontal-alignment: center;
                 }
@@ -458,7 +469,8 @@ component StyleTile {
                     text: "Aa";
                     color: root.preset.look.text;
                     font-size: 17px;
-                    font-weight: 600;
+                    font-weight: CaptionLook.style.weight;
+                    font-family: CaptionLook.style.family;
                 }
             }
 
@@ -511,6 +523,71 @@ component Swatch {
 
     touch := TouchArea {
         mouse-cursor: pointer;
+    }
+}
+
+component TypefaceOption {
+    in property <TypefaceChoice> choice;
+    in property <bool> selected;
+    callback clicked <=> touch.clicked;
+    min-width: max(84px, label.preferred-width + 24px);
+    height: 28px;
+    accessible-role: button;
+    accessible-label: root.choice.name;
+    accessible-checkable: true;
+    accessible-checked: root.selected;
+    accessible-action-default => {
+        touch.clicked();
+    }
+    Rectangle {
+        border-radius: 6px;
+        background: root.selected ? Palette.accent-background : touch.has-hover ? Palette.border : transparent;
+        animate background { duration: 120ms; }
+    }
+
+    label := Text {
+        text: root.choice.name;
+        font-family: root.choice.family;
+        font-weight: root.choice.weight;
+        font-size: 13px;
+        color: root.selected ? Palette.accent-foreground : Palette.foreground;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+    }
+}
+
+// Each choice is set in its own face, so the row shows what it offers before anything is chosen.
+component TypefaceRow {
+    HorizontalLayout {
+        spacing: 10px;
+        Text {
+            text: "Typeface";
+            font-size: 13px;
+            color: Palette.foreground;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+
+        Rectangle {
+            horizontal-stretch: 0;
+            border-radius: 9px;
+            border-width: 1px;
+            border-color: Palette.border;
+            background: Palette.background;
+            HorizontalLayout {
+                padding: 3px;
+                spacing: 2px;
+                for choice[index] in Appearance.typefaces: TypefaceOption {
+                    choice: choice;
+                    selected: Appearance.typeface == index;
+                    clicked => {
+                        Appearance.typeface-chosen(index);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -711,6 +788,8 @@ component SettingsPage inherits ScrollView {
                     }
                 }
             }
+
+            TypefaceRow { }
 
             ColorRow {
                 title: "Text";
