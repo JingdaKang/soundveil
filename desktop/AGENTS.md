@@ -11,13 +11,15 @@ about what has actually been seen working.
 
 - Seen working on a Mac, which also runs this app: the interface, settings, model download
   against a local server, recognition, captions, the overlay's look and layout, shortcut
-  recording, export text, and the Appearance card through scripted input. The way out of
+  recording, export text, and the Appearance card through scripted input. That includes the
+  overlay in each typeface, the fill and glow on highlighted words, lines already read dimming
+  and not while expanded, and a preset keeping the chosen typeface. The way out of
   click-through too: after a restart with it saved on, the real pointer brought up the badge, and
   one real click on it turned click-through off with the pointer standing still.
 - Seen working in CI: the app and its overlay open on Windows and Linux, and `--capture-check`
   hears a tone at the right level from a real PulseAudio server. The Windows installer and Linux
   packages build, with Vulkan. Those machines have no GPU or speakers.
-- Compiled but never run: WASAPI capture, installing either package, and reading the pointer on
+- Compiled but never run: the caption typefaces' fonts on Windows and Linux, WASAPI capture, installing either package, and reading the pointer on
   Windows and Linux in `pointer.rs`. Windows and Linux shortcuts, click-through, and moving or
   resizing the overlay have never been tried by a person. Wayland shortcuts through the portal
   have never been run at all. Resizing has never moved a window anywhere, because winit's
@@ -43,6 +45,7 @@ through the pipeline at live speed.
   property for: click-through, moving by the background, and resizing.
 - `src/pointer.rs`: where the pointer is on the screen, once per system, because winit can't say.
 - `src/appearance.rs`: hands a caption style to both windows and fills in the Appearance card.
+- `src/fonts.rs`: which installed font draws each caption typeface on this system.
 - `src/hotkeys.rs`: shortcuts through the operating system. `src/portal.rs` asks the desktop instead
   on Wayland, where the desktop picks the final keys and Settings only lists them.
 - `src/check.rs`: `--capture-check 5` tests capture with no model or window.
@@ -70,8 +73,25 @@ The interface may only be touched on its own thread. Worker threads use
 - Each window holds its own copy of the `CaptionLook` global, so `appearance.rs` sets both. The text
   shadow is copies of the text, because Slint's `Text` has no shadow and its software renderer
   ignores a stroke's width. Slint has no color picker either, so colors are swatches and a hex field.
-- The Mac app's typefaces, the top-to-bottom fill on highlighted words, and the dimming of lines
-  already read are not here yet.
+- The Mac app asks its system for rounded, serif, and monospaced designs. Slint takes only a family
+  name, so `fonts.rs` lists families for each typeface, best first, and uses the first one Slint's
+  own font list has. That list comes from Slint's `unstable-fontique-011` feature, another reason
+  the version is pinned. Classic, and any typeface with none of its families installed, is the
+  interface's own font at the weights captions always had.
+  - Windows: Rounded is Calibri, the nearest rounded face every copy has. Serif is Georgia, then
+    Cambria. Typewriter is Cascadia Mono, then Consolas, then Courier New.
+  - Linux: Rounded tries Nunito, M PLUS Rounded 1c, Varela Round, then Ubuntu, Ubuntu Sans, and
+    Cantarell, which are soft enough to stand in. Serif tries Noto Serif, Source Serif 4, DejaVu
+    Serif, then Liberation Serif. Typewriter tries Noto Sans Mono, DejaVu Sans Mono, Liberation
+    Mono, then Ubuntu Mono.
+  - Mac, for previews only: Slint can't find SF Pro Rounded or New York by name, so Rounded shows
+    in Arial Rounded MT Bold, which has one weight, and Serif in Georgia. A picture from a Mac
+    doesn't show what Windows or Linux will draw.
+- A highlighted word is filled with a gradient. FemtoVG and Skia fill text with it, and the software
+  renderer uses its first color alone, so the base highlight color comes first. The glow is faint
+  copies of the word, like the shadow, and only on light text over a dark surround.
+- `captions.slint` decides which lines have been read from where each word sits in the layout:
+  lines are packed against the bottom, so anything ending above the last line's height is read.
 - Final passes ease only where the machine is slow. Nothing here reports heat or power saving yet,
   though the Automatic speed's description says it eases off for both.
 - Wayland with no X11 layer can't report the pointer, so the badge never shows there and the way out
@@ -95,7 +115,7 @@ The interface may only be touched on its own thread. Worker threads use
 `SOUNDVEIL_PAGE=1` opens Settings, `SOUNDVEIL_AUTOSTART=1` presses Start, `SOUNDVEIL_FILL=48`
 adds history lines, `SOUNDVEIL_OVERLAY=1` shows the overlay, and `SOUNDVEIL_SHOT=overlay` pictures it
 in place of the main window. `SOUNDVEIL_HOVER_AT=10` points at the overlay at that second, and
-`SOUNDVEIL_EXPAND=1` also expands it. `SOUNDVEIL_SCRIPT="click 577 576; key F9"` clicks and types,
+`SOUNDVEIL_EXPAND=1` also expands it. A snapshot run prints which font each typeface found. `SOUNDVEIL_SCRIPT="click 577 576; key F9"` clicks and types,
 `point 300 60` moves without clicking, `wait 0.5` holds back the steps after it, and a step that
 starts with `overlay` acts on the overlay. `SOUNDVEIL_WORDS="some words"` shows words with no model.
 A script starts before the window is up, so take pictures well after its last step. A window that is
