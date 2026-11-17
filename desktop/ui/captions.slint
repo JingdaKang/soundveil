@@ -291,6 +291,9 @@ export component CaptionWords {
                 size: root.size;
                 full-width: root.width;
                 read: root.dims-read && self.y + self.height < flow.height - root.line / 2;
+                // A line that has scrolled out of view isn't drawn, or its shadow, which sits a
+                // little lower, would show along the top edge.
+                visible: self.y + self.height > 1px;
             }
         }
     }
