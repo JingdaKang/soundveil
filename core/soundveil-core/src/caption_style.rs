@@ -127,11 +127,12 @@ pub struct CaptionStyle {
 }
 
 impl CaptionStyle {
-    /// White on black, which is how captions looked before they could be styled.
+    /// A soft white is easier on the eyes than pure white over a long film, and the highlight is
+    /// a warm gold that stays clear of it.
     pub const STANDARD: Self = Self {
-        text: CaptionColor::new(0xFFFFFF),
+        text: CaptionColor::new(0xF5F2EA),
         background: CaptionColor::new(0x000000),
-        highlight: CaptionColor::new(0xFFD14D),
+        highlight: CaptionColor::new(0xFFC233),
         background_opacity: 0.78,
         text_opacity: 1.0,
         typeface: CaptionTypeface::Rounded,
@@ -228,6 +229,7 @@ impl CaptionPreset {
         Self {
             name: "Text only",
             style: CaptionStyle {
+                text: CaptionColor::new(0xFFFFFF),
                 background_opacity: 0.0,
                 ..CaptionStyle::STANDARD
             },
@@ -317,11 +319,11 @@ mod tests {
     }
 
     #[test]
-    fn default_keeps_the_original_look() {
+    fn default_is_soft_white_on_a_translucent_black_box() {
         let style = CaptionStyle::default();
-        assert_eq!(style.text, WHITE);
+        assert_eq!(style.text, CaptionColor::new(0xF5F2EA));
         assert_eq!(style.background, BLACK);
-        assert_eq!(style.highlight, CaptionColor::new(0xFFD14D));
+        assert_eq!(style.highlight, CaptionColor::new(0xFFC233));
         assert_eq!(style.background_opacity, 0.78);
         assert_eq!(style.text_opacity, 1.0);
         assert_eq!(style.typeface, CaptionTypeface::Rounded);
@@ -397,7 +399,7 @@ mod tests {
     fn a_highlights_top_leans_away_from_the_surroundings() {
         assert_eq!(
             CaptionStyle::STANDARD.highlight_top(),
-            CaptionColor::new(0xFFE394)
+            CaptionColor::new(0xFFDA85)
         );
         let dark = CaptionPreset::ALL[3].style;
         assert!(!dark.is_light_on_dark());
@@ -513,7 +515,7 @@ mod tests {
     fn a_style_missing_a_value_takes_the_default() {
         let style: CaptionStyle = serde_json::from_str(r#"{"backgroundOpacity":0.5}"#).unwrap();
         assert_eq!(style.background_opacity, 0.5);
-        assert_eq!(style.text, WHITE);
+        assert_eq!(style.text, CaptionStyle::STANDARD.text);
     }
 
     #[test]
